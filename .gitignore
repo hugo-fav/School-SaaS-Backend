@@ -1,0 +1,66 @@
+# ========================
+# DEPENDENCIES
+# ========================
+node_modules/
+
+# ========================
+# ENVIRONMENT VARIABLES
+# ========================
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# ========================
+# PRISMA
+# ========================
+prisma/migrations/
+!prisma/migrations/.gitkeep
+
+# (optional if you regenerate often)
+node_modules/.prisma/
+
+# ========================
+# LOGS
+# ========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================
+# OS FILES
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# IDE / EDITORS
+# ========================
+.vscode/
+.idea/
+
+# ========================
+# BUILD OUTPUT (if added later)
+# ========================
+dist/
+build/
+
+# ========================
+# TEST / CACHE
+# ========================
+coverage/
+.cache/
+
+# ========================
+# OPTIONAL: LOCAL DB FILES
+# ========================
+*.sqlite
+*.db
+
+# ========================
+# DEBUG
+# ========================
+debug.log
