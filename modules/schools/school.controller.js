@@ -6,7 +6,12 @@ export const createSchool = asyncHandler(async (req, res) => {
   const { name } = req.body;
 
   const school = await prisma.school.create({
-    data: { name, createdAt: new Date(), updatedAt: new Date(), schoolId: req.admin.schoolId },
+    data: {
+      name,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      schoolId: req.user.schoolId,
+    },
   });
 
   res.status(201).json({
@@ -17,9 +22,7 @@ export const createSchool = asyncHandler(async (req, res) => {
 
 // GET ALL SCHOOLS
 export const getSchools = asyncHandler(async (req, res) => {
-  const schools = await prisma.school.findMany({
-    where: { schoolId: req.admin.schoolId },
-  });
+  const schools = await prisma.school.findMany();
 
   res.status(200).json({
     message: "All schools fetched",
@@ -32,7 +35,7 @@ export const getSchool = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const school = await prisma.school.findUnique({
-    where: { schoolId: req.admin.schoolId, id },
+    where: { schoolId: req.user.schoolId, id },
   });
 
   if (!school) {
@@ -53,7 +56,7 @@ export const updateSchool = asyncHandler(async (req, res) => {
   const { name } = req.body;
 
   const school = await prisma.school.findUnique({
-    where: { schoolId: req.admin.schoolId, id },
+    where: { schoolId: req.user.schoolId, id },
   });
 
   if (!school) {
@@ -63,7 +66,7 @@ export const updateSchool = asyncHandler(async (req, res) => {
   }
 
   const updatedSchool = await prisma.school.update({
-    where: { schoolId: req.admin.schoolId, id },
+    where: { schoolId: req.user.schoolId, id },
     data: { name, updatedAt: new Date() },
   });
 
@@ -78,7 +81,7 @@ export const deleteSchool = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   await prisma.school.delete({
-    where: { schoolId: req.admin.schoolId, id },
+    where: { schoolId: req.user.schoolId, id },
   });
 
   res.status(200).json({

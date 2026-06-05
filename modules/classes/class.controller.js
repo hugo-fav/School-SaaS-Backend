@@ -1,6 +1,8 @@
 import prisma from "../../config/prisma.js";
 import asyncHandler from "../../utils/asyncHandler.js";
 
+// console.log("prisma:", prisma)
+
 // CRUD
 
 // Create Class
@@ -92,7 +94,7 @@ export const deleteClass = asyncHandler(async (req, res) => {
 export const assignTeacherToClass = asyncHandler(async (req, res) => {
   const { classId, teacherId } = req.body;
 
-  const teacher = await prisma.teacher.findFirst({
+  const teacher = await prisma.user.findFirst({
     where: {
       id: teacherId,
       schoolId: req.user.schoolId,
