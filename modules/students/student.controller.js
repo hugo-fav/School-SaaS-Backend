@@ -1,22 +1,12 @@
-import prisma from "../../config/prisma.js";
 import asyncHandler from "../../utils/asyncHandler.js";
-import bcrypt from "bcrypt";
+import * as studentService from "./student.service.js";
 
 // CREATE STUDENT
 export const createStudent = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const student = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-      role: "STUDENT",
-      schoolId: req.user.schoolId, // FORCE SCHOOL OWNERSHIP
-    },
-  });
+  const student = await studentService.createStudent(
+    req.body,
+    req.user.schoolId,
+  );
 
   res.status(201).json({
     message: "Student created successfully",
@@ -26,12 +16,7 @@ export const createStudent = asyncHandler(async (req, res) => {
 
 // GET ALL STUDENTS
 export const getStudents = asyncHandler(async (req, res) => {
-  const students = await prisma.user.findMany({
-    where: {
-      role: "STUDENT",
-      schoolId: req.user.schoolId, // 🔥 CRITICAL SECURITY RULE
-    },
-  });
+  const students = await studentService.getStudents(req.user.schoolId);
 
   res.status(200).json({
     message: "Students fetched successfully",
@@ -43,13 +28,7 @@ export const getStudents = asyncHandler(async (req, res) => {
 export const getStudent = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const student = await prisma.user.findFirst({
-    where: {
-      id,
-      role: "STUDENT",
-      schoolId: req.user.schoolId, // 🔥 PREVENT CROSS-SCHOOL ACCESS
-    },
-  });
+  const student = await studentService.getStudent(id, req.user.schoolId);
 
   if (!student) {
     return res.status(404).json({
@@ -66,21 +45,14 @@ export const getStudent = asyncHandler(async (req, res) => {
 // UPDATE STUDENT
 export const updateStudent = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, email } = req.body;
 
-  const student = await prisma.user.updateMany({
-    where: {
-      id,
-      role: "STUDENT",
-      schoolId: req.user.schoolId, // 🔥 SECURITY CHECK
-    },
-    data: {
-      name,
-      email,
-    },
-  });
+  const result = await studentService.updateStudent(
+    id,
+    req.user.schoolId,
+    req.body,
+  );
 
-  if (student.count === 0) {
+  if (result.count === 0) {
     return res.status(404).json({
       message: "Student not found or not in your school",
     });
@@ -95,13 +67,7 @@ export const updateStudent = asyncHandler(async (req, res) => {
 export const deleteStudent = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const result = await prisma.user.deleteMany({
-    where: {
-      id,
-      role: "STUDENT",
-      schoolId: req.user.schoolId, // 🔥 ABSOLUTE SAFETY
-    },
-  });
+  const result = await studentService.deleteStudent(id, req.user.schoolId);
 
   if (result.count === 0) {
     return res.status(404).json({

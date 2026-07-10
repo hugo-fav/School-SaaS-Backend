@@ -1,26 +1,16 @@
-import prisma from "../../config/prisma.js";
 import asyncHandler from "../../utils/asyncHandler.js";
-
-// console.log("prisma:", prisma)
-
-// CRUD
+import * as classService from "./class.service.js";
 
 // Create Class
 export const createClass = asyncHandler(async (req, res) => {
-  const { name } = req.body;
-
-  const classData = await prisma.class.create({
-    data: { name, schoolId: req.user.schoolId },
-  });
+  const classData = await classService.createClass(req.body, req.user.schoolId);
 
   res.status(201).json({ message: "Class created", data: classData });
 });
 
 // get all classes
 export const getClasses = asyncHandler(async (req, res) => {
-  const classes = await prisma.class.findMany({
-    where: { schoolId: req.user.schoolId },
-  });
+  const classes = await classService.getClasses(req.user.schoolId);
 
   res.status(200).json({ message: "All classes", data: classes });
 });
@@ -29,9 +19,7 @@ export const getClasses = asyncHandler(async (req, res) => {
 export const getClass = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const classData = await prisma.class.findFirst({
-    where: { id, schoolId: req.user.schoolId },
-  });
+  const classData = await classService.getClass(id, req.user.schoolId);
 
   if (!classData) {
     return res.status(404).json({ message: "Class not found" });
@@ -43,17 +31,12 @@ export const getClass = asyncHandler(async (req, res) => {
 // updateClass
 export const updateClass = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name } = req.body;
 
-  const result = await prisma.class.updateMany({
-    where: {
-      id,
-      schoolId: req.user.schoolId,
-    },
-    data: {
-      name,
-    },
-  });
+  const result = await classService.updateClass(
+    id,
+    req.user.schoolId,
+    req.body,
+  );
 
   if (result.count === 0) {
     return res.status(404).json({
@@ -70,12 +53,7 @@ export const updateClass = asyncHandler(async (req, res) => {
 export const deleteClass = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const result = await prisma.class.deleteMany({
-    where: {
-      id,
-      schoolId: req.user.schoolId, // 🔥 CRITICAL SAFETY
-    },
-  });
+  const result = await classService.deleteClass(id, req.user.schoolId);
 
   if (result.count === 0) {
     return res.status(404).json({
@@ -88,19 +66,15 @@ export const deleteClass = asyncHandler(async (req, res) => {
   });
 });
 
-// this other functions are for assigning teachers and students to classes, and fetching class details with members
-
 // Assign teacher to class
 export const assignTeacherToClass = asyncHandler(async (req, res) => {
   const { classId, teacherId } = req.body;
 
-  const teacher = await prisma.user.findFirst({
-    where: {
-      id: teacherId,
-      schoolId: req.user.schoolId,
-      role: "TEACHER",
-    },
-  });
+  const { teacher, result } = await classService.assignTeacherToClass(
+    classId,
+    teacherId,
+    req.user.schoolId,
+  );
 
   if (!teacher) {
     return res.status(404).json({
@@ -108,17 +82,7 @@ export const assignTeacherToClass = asyncHandler(async (req, res) => {
     });
   }
 
-  const updateClass = await prisma.class.updateMany({
-    where: {
-      id: classId,
-      schoolId: req.user.schoolId,
-    },
-    data: {
-      teacherId,
-    },
-  });
-
-  if (updateClass.count === 0) {
+  if (result.count === 0) {
     return res.status(404).json({
       message: "Class not found or not in your school",
     });
@@ -129,55 +93,76 @@ export const assignTeacherToClass = asyncHandler(async (req, res) => {
   });
 });
 
+// Get classes taught by a teacher
+export const getTeacherClasses = asyncHandler(async (req, res) => {
+  const { teacherId } = req.params;
+
+  const teacher = await classService.getTeacherClasses(
+    teacherId,
+    req.user.schoolId,
+  );
+
+  if (!teacher) {
+    return res.status(404).json({
+      message: "Teacher not found",
+    });
+  }
+
+  res.status(200).json({
+    data: teacher.taughtClasses,
+  });
+});
+
 // Enroll student to class
 export const assignStudentToClass = asyncHandler(async (req, res) => {
-  const { classId, studentId } = req.body;
+  const { classId } = req.params;
+  const { studentId } = req.body;
 
-  // Check if student exists and belongs to the same school
-  const student = await prisma.student.findFirst({
-    where: {
-      id: studentId,
-      schoolId: req.user.schoolId,
-      role: "STUDENT",
-    },
-  });
+  if (!classId) {
+    return res.status(400).json({
+      success: false,
+      message: "classId is required",
+    });
+  }
 
-  if (!student) {
+  if (!studentId) {
+    return res.status(400).json({
+      success: false,
+      message: "studentId is required",
+    });
+  }
+
+  const assignment = await classService.assignStudentToClass(
+    classId,
+    studentId,
+    req.user.schoolId,
+  );
+
+  if (assignment.notFoundStudent) {
     return res.status(404).json({
+      success: false,
       message: "Student not found or not in your school",
     });
   }
 
-  // check if class exists and belongs to the same school
-  const classData = await prisma.class.findFirst({
-    where: {
-      id: classId,
-      schoolId: req.user.schoolId,
-    },
-  });
-
-  if (!classData) {
+  if (assignment.notFoundClass) {
     return res.status(404).json({
+      success: false,
       message: "Class not found or not in your school",
     });
   }
 
-  // Enroll student to class
-  const updatedClass = await prisma.class.update({
-    where: { id: classId },
-    data: {
-      students: {
-        connect: { id: studentId },
-      },
-    },
-    include: {
-      students: true,
-    },
-  });
+  if (assignment.alreadyEnrolled) {
+    return res.status(400).json({
+      success: false,
+      message: "Student is already enrolled in this class",
+    });
+  }
 
   res.status(200).json({
-    message: "Student enrolled in class",
-    data: updatedClass,
+    success: true,
+    message: "Student enrolled successfully",
+    data: assignment.updatedClass,
   });
 });
 
@@ -185,16 +170,7 @@ export const assignStudentToClass = asyncHandler(async (req, res) => {
 export const getClassWithMembers = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const classData = await prisma.class.findFirst({
-    where: {
-      id,
-      schoolId: req.user.schoolId,
-    },
-    include: {
-      teacher: true,
-      students: true,
-    },
-  });
+  const classData = await classService.getClassWithMembers(id);
 
   if (!classData) {
     return res.status(404).json({

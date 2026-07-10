@@ -8,6 +8,7 @@ import {
   assignStudentToClass,
   assignTeacherToClass,
   getClassWithMembers,
+  getTeacherClasses,
 } from "./class.controller.js";
 import { protect } from "../../middlewares/auth.middleware.js";
 import { authorize } from "../../middlewares/authorization.middleware.js";
@@ -26,12 +27,21 @@ router.patch(
   authorize("ADMIN"),
   assignStudentToClass,
 );
+
 router.patch(
   "/:classId/assign-teacher",
   protect,
   authorize("ADMIN"),
   assignTeacherToClass,
 );
+
+router.get(
+  "/teacher/:teacherId/members",
+  protect,
+  authorize("ADMIN", "TEACHER"),
+  getTeacherClasses,
+);
+
 router.get(
   "/:id/members",
   protect,

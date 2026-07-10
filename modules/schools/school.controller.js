@@ -1,18 +1,9 @@
-import prisma from "../../config/prisma.js";
 import asyncHandler from "../../utils/asyncHandler.js";
+import * as schoolService from "./school.service.js";
 
 // CREATE SCHOOL
 export const createSchool = asyncHandler(async (req, res) => {
-  const { name } = req.body;
-
-  const school = await prisma.school.create({
-    data: {
-      name,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      schoolId: req.user.schoolId,
-    },
-  });
+  const school = await schoolService.createSchool(req.body);
 
   res.status(201).json({
     message: "School created successfully",
@@ -22,7 +13,7 @@ export const createSchool = asyncHandler(async (req, res) => {
 
 // GET ALL SCHOOLS
 export const getSchools = asyncHandler(async (req, res) => {
-  const schools = await prisma.school.findMany();
+  const schools = await schoolService.getSchools();
 
   res.status(200).json({
     message: "All schools fetched",
@@ -34,9 +25,7 @@ export const getSchools = asyncHandler(async (req, res) => {
 export const getSchool = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const school = await prisma.school.findUnique({
-    where: { schoolId: req.user.schoolId, id },
-  });
+  const school = await schoolService.getSchool(req.user.schoolId, id);
 
   if (!school) {
     return res.status(404).json({
@@ -53,22 +42,18 @@ export const getSchool = asyncHandler(async (req, res) => {
 // UPDATE SCHOOL
 export const updateSchool = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name } = req.body;
 
-  const school = await prisma.school.findUnique({
-    where: { schoolId: req.user.schoolId, id },
-  });
+  const updatedSchool = await schoolService.updateSchool(
+    req.user.schoolId,
+    id,
+    req.body,
+  );
 
-  if (!school) {
+  if (!updatedSchool) {
     return res.status(404).json({
       message: "School not found",
     });
   }
-
-  const updatedSchool = await prisma.school.update({
-    where: { schoolId: req.user.schoolId, id },
-    data: { name, updatedAt: new Date() },
-  });
 
   res.status(200).json({
     message: "School updated successfully",
@@ -80,9 +65,13 @@ export const updateSchool = asyncHandler(async (req, res) => {
 export const deleteSchool = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  await prisma.school.delete({
-    where: { schoolId: req.user.schoolId, id },
-  });
+  const deletedSchool = await schoolService.deleteSchool(req.user.schoolId, id);
+
+  if (!deletedSchool) {
+    return res.status(404).json({
+      message: "School not found",
+    });
+  }
 
   res.status(200).json({
     message: "School deleted successfully",

@@ -6,6 +6,9 @@ import {
   getTeacher,
   updateTeacher,
   deleteTeacher,
+  getMyProfile,
+  getMyClasses,
+  getMyStudents,
 } from "./teacher.controller.js";
 
 import { protect } from "../../middlewares/auth.middleware.js";
@@ -15,9 +18,15 @@ const router = express.Router();
 
 router.post("/", protect, authorize("ADMIN"), createTeacher);
 
-router.get("/", protect, authorize("ADMIN", "TEACHER"), getTeachers);
+router.get("/me", protect, authorize("TEACHER"), getMyProfile);
 
-router.get("/:id", protect, authorize("ADMIN", "TEACHER"), getTeacher);
+router.get("/my-classes", protect, authorize("TEACHER"), getMyClasses);
+
+router.get("/my-students", protect, authorize("TEACHER"), getMyStudents);
+
+router.get("/", protect, authorize("ADMIN"), getTeachers);
+
+router.get("/:id", protect, authorize("ADMIN"), getTeacher);
 
 router.put("/:id", protect, authorize("ADMIN"), updateTeacher);
 
