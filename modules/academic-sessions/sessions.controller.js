@@ -22,6 +22,7 @@ export const getSessions = asyncHandler(async (req, res) => {
   });
 });
 
+// get one session
 export const getSession = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const session = await sessionService.getSession(id, req.user.schoolId);
@@ -38,30 +39,26 @@ export const getSession = asyncHandler(async (req, res) => {
 
 export const updateSession = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const result = await sessionService.updateSession(
+
+  const session = await sessionService.updateSession(
     id,
     req.user.schoolId,
     req.body,
   );
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Session not found or not in your school" });
-  }
-
-  res.status(200).json({ message: "Session updated successfully" });
+  res.status(200).json({
+    message: "Session updated successfully",
+    data: session,
+  });
 });
 
 export const deleteSession = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const result = await sessionService.deleteSession(id, req.user.schoolId);
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Session not found or not in your school" });
-  }
+  const session = await sessionService.deleteSession(id, req.user.schoolId);
 
-  res.status(200).json({ message: "Session deleted successfully" });
+  res.status(200).json({
+    message: "Session deleted successfully",
+    data: session,
+  });
 });

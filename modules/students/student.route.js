@@ -3,6 +3,10 @@ import express from "express";
 import {
   createStudent,
   deleteStudent,
+  getMyAttendance,
+  getMyClasses,
+  getMyProfile,
+  getMyResults,
   getStudent,
   getStudents,
   updateStudent,
@@ -16,6 +20,14 @@ const router = express.Router();
 router.post("/", protect, authorize("ADMIN"), createStudent);
 
 router.get("/", protect, authorize("ADMIN", "TEACHER"), getStudents);
+
+router.get("/me", protect, authorize("STUDENT"), getMyProfile);
+
+router.get("/me/classes", protect, authorize("STUDENT"), getMyClasses);
+
+router.get("/me/results", protect, authorize("STUDENT"), getMyResults);
+
+router.get("/me/attendance", protect, authorize("STUDENT"), getMyAttendance);
 
 router.get("/:id", protect, authorize("ADMIN", "TEACHER"), getStudent);
 

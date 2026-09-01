@@ -1,15 +1,18 @@
 import asyncHandler from "../../utils/asyncHandler.js";
 import * as teacherSubjectService from "./teacherSubjects.service.js";
 
+//  Assign Teacher to Subject
 export const createTeacherSubject = asyncHandler(async (req, res) => {
-  const teacherSubject = await teacherSubjectService.createTeacherSubject(
+  const assignment = await teacherSubjectService.createTeacherSubject(
     req.body,
     req.user.schoolId,
   );
 
+  console.log(assignment);
+
   res.status(201).json({
-    message: "Teacher subject created successfully",
-    data: teacherSubject,
+    message: "Teacher assigned successfully",
+    data: assignment,
   });
 });
 
@@ -49,13 +52,9 @@ export const updateTeacherSubject = asyncHandler(async (req, res) => {
     req.body,
   );
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Teacher subject not found or not in your school" });
-  }
-
-  res.status(200).json({ message: "Teacher subject updated successfully" });
+  res
+    .status(200)
+    .json({ message: "Teacher subject updated successfully", data: result });
 });
 
 export const deleteTeacherSubject = asyncHandler(async (req, res) => {
@@ -64,12 +63,6 @@ export const deleteTeacherSubject = asyncHandler(async (req, res) => {
     id,
     req.user.schoolId,
   );
-
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Teacher subject not found or not in your school" });
-  }
 
   res.status(200).json({ message: "Teacher subject deleted successfully" });
 });

@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma.js";
+import { encrypt } from "../../utils/crypto.js";
 
 export const createSchool = async (schoolData) => {
   const { name } = schoolData;
@@ -45,5 +46,38 @@ export const deleteSchool = async (userSchoolId, schoolId) => {
 
   return prisma.school.delete({
     where: { id: schoolId },
+  });
+};
+
+export const updatePaymentSettings = async (
+  schoolId,
+  { paystackSecretKey, paystackPublicKey },
+) => {
+  const school = await prisma.school.findUnique({
+    where: {
+      id: schoolId,
+    },
+  });
+
+  if (!school) {
+    throw new Error("School not found");
+  }
+
+  const encryptedSecretKey = encrypt(paystackSecretKey);
+
+  return prisma.school.update({
+    where: {
+      id: schoolId,
+    },
+    data: {
+      paystackSecretKey: encryptedSecretKey,
+      paystackPublicKey,
+    },
+    select: {
+      id: true,
+      name: true,
+      paystackPublicKey: true,
+      createdAt: true,
+    },
   });
 };

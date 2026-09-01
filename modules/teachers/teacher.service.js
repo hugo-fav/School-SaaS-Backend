@@ -80,30 +80,142 @@ export const getMyProfile = async (teacherId, schoolId) => {
 };
 
 export const getMyClasses = async (teacherId, schoolId) => {
-  return prisma.class.findMany({
+  const teacherSubjects = await prisma.teacherSubject.findMany({
     where: {
       teacherId,
-      schoolId,
+      session: {
+        schoolId,
+      },
     },
-    select: {
-      id: true,
-      name: true,
-      createdAt: true,
+    include: {
+      class: true,
+      subject: true,
+      session: true,
     },
     orderBy: {
-      name: "asc",
+      class: {
+        name: "asc",
+      },
+    },
+  });
+
+  return teacherSubjects;
+};
+
+export const getMyStudents = async (teacherId, schoolId) => {
+  const teacherSubjects = await prisma.teacherSubject.findMany({
+    where: {
+      teacherId,
+      session: {
+        schoolId,
+      },
+    },
+    include: {
+      subject: true,
+      class: {
+        include: {
+          enrollments: {
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  createdAt: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      session: true,
+    },
+  });
+
+  return teacherSubjects;
+};
+
+export const getMySubjects = async (teacherId, schoolId) => {
+  return prisma.teacherSubject.findMany({
+    where: {
+      teacherId,
+      class: {
+        schoolId,
+      },
+    },
+    include: {
+      subject: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          description: true,
+        },
+      },
+      class: {
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+      session: {
+        select: {
+          id: true,
+          name: true,
+          isActive: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+    orderBy: {
+      subject: {
+        name: "asc",
+      },
     },
   });
 };
 
-export const getMyStudents = async (teacherId, schoolId) => {
-  const classes = await prisma.class.findMany({
+export const getStudentsByTeacherSubject = async (
+  teacherSubjectId,
+  teacherId,
+  schoolId,
+) => {
+  const teacherSubject = await prisma.teacherSubject.findFirst({
     where: {
+      id: teacherSubjectId,
       teacherId,
-      schoolId,
+      session: {
+        schoolId,
+      },
     },
     include: {
-      students: {
+      subject: true,
+      class: true,
+      session: true,
+    },
+  });
+
+  if (!teacherSubject) {
+    const error = new Error(
+      "Teacher subject not found or you are not assigned to it",
+    );
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      classId: teacherSubject.classId,
+      sessionId: teacherSubject.sessionId,
+      session: {
+        schoolId,
+      },
+    },
+    include: {
+      student: {
         select: {
           id: true,
           name: true,
@@ -112,7 +224,24 @@ export const getMyStudents = async (teacherId, schoolId) => {
         },
       },
     },
+    orderBy: {
+      student: {
+        name: "asc",
+      },
+    },
   });
 
-  return classes;
+  return {
+    teacherSubject: {
+      id: teacherSubject.id,
+      subject: teacherSubject.subject,
+      class: teacherSubject.class,
+      session: teacherSubject.session,
+    },
+
+    students: enrollments.map((enrollment) => ({
+      enrollmentId: enrollment.id,
+      student: enrollment.student,
+    })),
+  };
 };

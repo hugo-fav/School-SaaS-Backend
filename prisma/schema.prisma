@@ -12,41 +12,442 @@ model School {
   name      String
   createdAt DateTime @default(now())
 
-  users   User[]
-  classes Class[]
+  paystackSecretKey String? // encrypted at rest
+  paystackPublicKey String?
+
+  users       User[]
+  classes     Class[]
+  subjects    Subject[]
+  sessions    AcademicSession[]
+  gradeScales GradeScale[]
+
+  fees     Fee[]
+  payments Payment[]
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(STUDENT)
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
+
+  role Role @default(STUDENT)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   schoolId String
   school   School @relation(fields: [schoolId], references: [id])
 
-  taughtClasses Class[] @relation("TeacherClasses")
-  classes       Class[] @relation("StudentClasses")
+  taughtSubjects TeacherSubject[]
+
+  enrollments Enrollment[]
+
+  gradedScores Score[] @relation("ScoreGradedBy")
+
+  attendanceMarked Attendance[] @relation("AttendanceMarkedBy")
+
+  promotionHistory PromotionHistory[] @relation("PromotionHistoryBy")
 }
 
 model Class {
-  id        String   @id @default(uuid())
-  name      String
+  id   String @id @default(uuid())
+  name String
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   schoolId String
   school   School @relation(fields: [schoolId], references: [id])
 
-  teacherId String?
-  teacher   User?   @relation("TeacherClasses", fields: [teacherId], references: [id])
+  teacherSubjects TeacherSubject[]
 
-  students User[] @relation("StudentClasses")
+  promotedFrom PromotionHistory[] @relation("FromClass")
+  promotedTo   PromotionHistory[] @relation("ToClass")
+  enrollments  Enrollment[]
+  fees          Fee[]
+}
+
+model Subject {
+  id String @id @default(uuid())
+
+  name        String
+  code        String?
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  teacherSubjects TeacherSubject[]
+
+  @@unique([schoolId, name, code])
+}
+
+model AcademicSession {
+  id String @id @default(uuid())
+
+  name String
+
+  isActive Boolean @default(false)
+
+  startDate DateTime
+  endDate   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  terms Term[]
+
+  enrollments Enrollment[]
+
+  teacherSubjects TeacherSubject[]
+  fees            Fee[]
+
+  @@unique([schoolId, name])
+}
+
+model Term {
+  id String @id @default(uuid())
+
+  name String
+
+  isActive Boolean @default(false)
+
+  startDate DateTime
+  endDate   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessionId String
+  session   AcademicSession @relation(fields: [sessionId], references: [id])
+
+  assessments Assessment[]
+  reportCards ReportCard[]
+  fees        Fee[]
+
+  @@unique([sessionId, name])
+}
+
+model Enrollment {
+  id String @id @default(uuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id])
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id])
+
+  sessionId String
+  session   AcademicSession @relation(fields: [sessionId], references: [id])
+
+  scores Score[]
+
+  attendance Attendance[]
+
+  promotions  PromotionHistory[]
+  reportCards ReportCard[]
+  invoices    Invoice[]
+
+  @@unique([studentId, sessionId])
+}
+
+model TeacherSubject {
+  id String @id @default(uuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacherId String
+  teacher   User   @relation(fields: [teacherId], references: [id])
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id])
+
+  sessionId String
+  session   AcademicSession @relation(fields: [sessionId], references: [id])
+
+  assessments Assessment[]
+
+  attendance Attendance[]
+
+  @@unique([teacherId, subjectId, classId, sessionId])
+}
+
+model Assessment {
+  id String @id @default(uuid())
+
+  title       String
+  description String?
+
+  type AssessmentType
+
+  maxScore Float
+
+  dueDate DateTime?
+
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacherSubjectId String
+  teacherSubject   TeacherSubject @relation(fields: [teacherSubjectId], references: [id])
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id])
+
+  scores Score[]
+
+  @@unique([teacherSubjectId, termId, title])
+}
+
+model Score {
+  id String @id @default(uuid())
+
+  obtainedScore Float
+
+  remark String?
+
+  gradedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id])
+
+  gradedById String?
+  gradedBy   User?   @relation("ScoreGradedBy", fields: [gradedById], references: [id])
+
+  @@unique([enrollmentId, assessmentId])
+}
+
+model Attendance {
+  id String @id @default(uuid())
+
+  date DateTime
+
+  status AttendanceStatus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  teacherSubjectId String
+  teacherSubject   TeacherSubject @relation(fields: [teacherSubjectId], references: [id])
+
+  markedById String?
+  markedBy   User?   @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+
+  @@unique([enrollmentId, teacherSubjectId, date])
+}
+
+model GradeScale {
+  id String @id @default(uuid())
+
+  minScore Float
+  maxScore Float
+
+  grade String
+
+  remark String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  @@unique([schoolId, grade])
+}
+
+model PromotionHistory {
+  id String @id @default(uuid())
+
+  status PromotionStatus
+
+  remark String?
+
+  promotedAt DateTime @default(now())
+
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  fromClassId String
+  fromClass   Class  @relation("FromClass", fields: [fromClassId], references: [id])
+
+  toClassId String?
+  toClass   Class?  @relation("ToClass", fields: [toClassId], references: [id])
+
+  promotedById String
+  promotedBy   User   @relation("PromotionHistoryBy", fields: [promotedById], references: [id])
+
+  @@unique([enrollmentId])
+}
+
+model ReportCard {
+  id String @id @default(uuid())
+
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id])
+
+  average  Float
+  position Int
+
+  overallGrade  String
+  overallRemark String
+
+  teacherRemark   String?
+  principalRemark String?
+
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([enrollmentId, termId])
+}
+
+model Fee {
+  id String @id @default(uuid())
+
+  name        String
+  description String?
+  amount      Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  sessionId String
+  session   AcademicSession @relation(fields: [sessionId], references: [id])
+
+  termId String?
+  term   Term?   @relation(fields: [termId], references: [id])
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id])
+
+  invoices Invoice[]
+}
+
+model Invoice {
+  id String @id @default(uuid())
+
+  invoiceNumber String @unique
+
+  description String
+  amount      Decimal @db.Decimal(12, 2)
+  amountPaid  Decimal @default(0) @db.Decimal(12, 2)
+
+  status InvoiceStatus @default(PENDING)
+
+  dueDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  feeId String
+  fee   Fee    @relation(fields: [feeId], references: [id])
+
+  payments Payment[]
+
+  @@unique([enrollmentId, feeId])
+}
+
+model Payment {
+  id String @id @default(uuid())
+
+  reference String @unique
+
+  amount Decimal @db.Decimal(12, 2)
+
+  status PaymentStatus @default(PENDING)
+
+  provider              String?
+  providerTransactionId String?
+
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
 }
 
 enum Role {
   ADMIN
   TEACHER
   STUDENT
+}
+
+enum AssessmentType {
+  ASSIGNMENT
+  QUIZ
+  CA
+  PROJECT
+  PRACTICAL
+  EXAM
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum PromotionStatus {
+  PROMOTED
+  REPEATED
+  GRADUATED
+  WITHDRAWN
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+  REFUNDED
 }

@@ -122,3 +122,32 @@ export const getMyStudents = asyncHandler(async (req, res) => {
     data: classes,
   });
 });
+
+export const getMySubjects = asyncHandler(async (req, res) => {
+  const subjects = await teacherService.getMySubjects(
+    req.user.id,
+    req.user.schoolId,
+  );
+
+  res.status(200).json({
+    message: "Teacher subjects fetched successfully",
+    results: subjects.length,
+    data: subjects,
+  });
+});
+
+export const getStudentsByTeacherSubject = asyncHandler(async (req, res) => {
+  const { teacherSubjectId } = req.params;
+
+  const result = await teacherService.getStudentsByTeacherSubject(
+    teacherSubjectId,
+    req.user.id,
+    req.user.schoolId,
+  );
+
+  res.status(200).json({
+    message: "Teacher subject students fetched successfully",
+    results: result.students.length,
+    data: result,
+  });
+});

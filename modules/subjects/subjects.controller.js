@@ -37,31 +37,22 @@ export const getSubject = asyncHandler(async (req, res) => {
 });
 
 export const updateSubject = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const result = await subjectService.updateSubject(
-    id,
+  const subject = await subjectService.updateSubject(
+    req.params.id,
     req.user.schoolId,
     req.body,
   );
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Subject not found or not in your school" });
-  }
-
-  res.status(200).json({ message: "Subject updated successfully" });
+  res.status(200).json({
+    message: "Subject updated successfully.",
+    data: subject,
+  });
 });
 
 export const deleteSubject = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const result = await subjectService.deleteSubject(id, req.user.schoolId);
+  await subjectService.deleteSubject(req.params.id, req.user.schoolId);
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Subject not found or not in your school" });
-  }
-
-  res.status(200).json({ message: "Subject deleted successfully" });
+  res.status(200).json({
+    message: "Subject deleted successfully.",
+  });
 });

@@ -77,3 +77,16 @@ export const deleteSchool = asyncHandler(async (req, res) => {
     message: "School deleted successfully",
   });
 });
+
+export const updatePaymentSettings = asyncHandler(async (req, res) => {
+  const school = await schoolService.updatePaymentSettings(
+    req.user.schoolId,
+    req.body,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Payment settings updated successfully",
+    data: school,
+  });
+});

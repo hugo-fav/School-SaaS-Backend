@@ -35,26 +35,13 @@ export const getTerm = asyncHandler(async (req, res) => {
 
 export const updateTerm = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const result = await termService.updateTerm(id, req.user.schoolId, req.body);
+  const term = await termService.updateTerm(id, req.user.schoolId, req.body);
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Term not found or not in your school" });
-  }
-
-  res.status(200).json({ message: "Term updated successfully" });
+  res.status(200).json({ message: "Term updated successfully", data: term });
 });
 
 export const deleteTerm = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const result = await termService.deleteTerm(id, req.user.schoolId);
-
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Term not found or not in your school" });
-  }
+  await termService.deleteTerm(req.params.id, req.user.schoolId);
 
   res.status(200).json({ message: "Term deleted successfully" });
 });
