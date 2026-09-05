@@ -1,59 +1,24 @@
 import asyncHandler from "../../utils/asyncHandler.js";
 import * as schoolService from "./school.service.js";
 
-// CREATE SCHOOL
-export const createSchool = asyncHandler(async (req, res) => {
-  const school = await schoolService.createSchool(req.body);
-
-  res.status(201).json({
-    message: "School created successfully",
-    data: school,
-  });
-});
-
-// GET ALL SCHOOLS
-export const getSchools = asyncHandler(async (req, res) => {
-  const schools = await schoolService.getSchools();
-
-  res.status(200).json({
-    message: "All schools fetched",
-    data: schools,
-  });
-});
-
-// GET SINGLE SCHOOL
-export const getSchool = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const school = await schoolService.getSchool(req.user.schoolId, id);
+export const getMySchool = asyncHandler(async (req, res) => {
+  const school = await schoolService.getMySchool(req.user.schoolId);
 
   if (!school) {
-    return res.status(404).json({
-      message: "School not found",
-    });
+    return res.status(404).json({ message: "School not found" });
   }
 
   res.status(200).json({
-    message: "School found",
+    message: "School fetched successfully",
     data: school,
   });
 });
 
-// UPDATE SCHOOL
-export const updateSchool = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const updatedSchool = await schoolService.updateSchool(
+export const updateMySchool = asyncHandler(async (req, res) => {
+  const updatedSchool = await schoolService.updateMySchool(
     req.user.schoolId,
-    id,
     req.body,
   );
-
-  if (!updatedSchool) {
-    return res.status(404).json({
-      message: "School not found",
-    });
-  }
 
   res.status(200).json({
     message: "School updated successfully",
@@ -61,20 +26,11 @@ export const updateSchool = asyncHandler(async (req, res) => {
   });
 });
 
-// DELETE SCHOOL
-export const deleteSchool = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const deletedSchool = await schoolService.deleteSchool(req.user.schoolId, id);
-
-  if (!deletedSchool) {
-    return res.status(404).json({
-      message: "School not found",
-    });
-  }
+export const deactivateMySchool = asyncHandler(async (req, res) => {
+  await schoolService.deactivateMySchool(req.user.schoolId);
 
   res.status(200).json({
-    message: "School deleted successfully",
+    message: "School deactivated successfully",
   });
 });
 

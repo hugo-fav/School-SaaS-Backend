@@ -1,21 +1,30 @@
 import express from "express";
 import {
-  createSchool,
-  deleteSchool,
-  getSchool,
-  getSchools,
-  updateSchool,
+  getMySchool,
+  updateMySchool,
+  deactivateMySchool,
   updatePaymentSettings,
 } from "./school.controller.js";
 
 import { protect } from "../../middlewares/auth.middleware.js";
-import { validatePaymentSettings } from "./school.validation.js";
 import { authorize } from "../../middlewares/authorization.middleware.js";
+import {
+  validateUpdateSchool,
+  validatePaymentSettings,
+} from "./school.validation.js";
 
 const router = express.Router();
 
-router.post("/", protect, createSchool);
-router.get("/", protect, getSchools);
+router.get("/me", protect, authorize("ADMIN"), getMySchool);
+router.put(
+  "/me",
+  protect,
+  authorize("ADMIN"),
+  validateUpdateSchool,
+  updateMySchool,
+);
+router.delete("/me", protect, authorize("ADMIN"), deactivateMySchool);
+
 router.put(
   "/payment-settings",
   protect,
@@ -23,9 +32,5 @@ router.put(
   validatePaymentSettings,
   updatePaymentSettings,
 );
-
-router.get("/:id", protect, getSchool);
-router.put("/:id", protect, updateSchool);
-router.delete("/:id", protect, deleteSchool);
 
 export default router;

@@ -1,37 +1,22 @@
 import prisma from "../../config/prisma.js";
 import { encrypt } from "../../utils/crypto.js";
 
-export const createSchool = async (schoolData) => {
-  const { name } = schoolData;
-
-  return prisma.school.create({
-    data: {
-      name,
-      createdAt: new Date(),
-    },
-  });
-};
-
-export const getSchools = async () => {
-  return prisma.school.findMany();
-};
-
-export const getSchool = async (userSchoolId, schoolId) => {
-  if (schoolId !== userSchoolId) {
-    return null;
-  }
-
+export const getMySchool = async (schoolId) => {
   return prisma.school.findUnique({
     where: { id: schoolId },
   });
 };
 
-export const updateSchool = async (userSchoolId, schoolId, schoolData) => {
-  if (schoolId !== userSchoolId) {
-    return null;
-  }
-
+export const updateMySchool = async (schoolId, schoolData) => {
   const { name } = schoolData;
+
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+
+  if (!school) {
+    const error = new Error("School not found");
+    error.statusCode = 404;
+    throw error;
+  }
 
   return prisma.school.update({
     where: { id: schoolId },
@@ -39,13 +24,18 @@ export const updateSchool = async (userSchoolId, schoolId, schoolData) => {
   });
 };
 
-export const deleteSchool = async (userSchoolId, schoolId) => {
-  if (schoolId !== userSchoolId) {
-    return null;
+export const deactivateMySchool = async (schoolId) => {
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+
+  if (!school) {
+    const error = new Error("School not found");
+    error.statusCode = 404;
+    throw error;
   }
 
-  return prisma.school.delete({
+  return prisma.school.update({
     where: { id: schoolId },
+    data: { isActive: false },
   });
 };
 
@@ -53,22 +43,18 @@ export const updatePaymentSettings = async (
   schoolId,
   { paystackSecretKey, paystackPublicKey },
 ) => {
-  const school = await prisma.school.findUnique({
-    where: {
-      id: schoolId,
-    },
-  });
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
 
   if (!school) {
-    throw new Error("School not found");
+    const error = new Error("School not found");
+    error.statusCode = 404;
+    throw error;
   }
 
   const encryptedSecretKey = encrypt(paystackSecretKey);
 
   return prisma.school.update({
-    where: {
-      id: schoolId,
-    },
+    where: { id: schoolId },
     data: {
       paystackSecretKey: encryptedSecretKey,
       paystackPublicKey,
