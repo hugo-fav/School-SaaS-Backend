@@ -126,7 +126,7 @@ export const getEnrollments = async (schoolId) => {
 };
 
 export const getEnrollment = async (id, schoolId) => {
-  return prisma.enrollment.findFirst({
+  const enrollment = prisma.enrollment.findFirst({
     where: {
       id,
       session: {
@@ -148,7 +148,7 @@ export const getEnrollment = async (id, schoolId) => {
     },
   });
 
-  ensureExists(enrollments, "Enrollment");
+  ensureExists(enrollment, "Enrollment");
 
   return enrollment;
 };
