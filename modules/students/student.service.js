@@ -4,8 +4,25 @@ import { ensureExists } from "../../utils/validations/ensureExists.js";
 import { getStudentResults } from "../result/result.service.js";
 import createHttpError from "../../utils/errors/createHttpError.js";
 
+const studentSafeSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  schoolId: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 export const createStudent = async (studentData, schoolId) => {
   const { name, email, password } = studentData;
+
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+
+  if (existingUser) {
+    throw createHttpError(409, "An account with this email already exists");
+  }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -17,53 +34,125 @@ export const createStudent = async (studentData, schoolId) => {
       role: "STUDENT",
       schoolId,
     },
+    select: studentSafeSelect,
   });
 };
 
+// Admin sees every student in the school.
 export const getStudents = async (schoolId) => {
   return prisma.user.findMany({
+    where: { role: "STUDENT", schoolId },
+    select: studentSafeSelect,
+  });
+};
+
+// Teacher sees only students enrolled in classes they're assigned to teach.
+export const getStudentsForTeacher = async (teacherId, schoolId) => {
+  const teacherSubjects = await prisma.teacherSubject.findMany({
+    where: { teacherId, session: { schoolId } },
+    select: { classId: true, sessionId: true },
+  });
+
+  if (teacherSubjects.length === 0) {
+    return [];
+  }
+
+  const enrollments = await prisma.enrollment.findMany({
     where: {
-      role: "STUDENT",
-      schoolId,
+      OR: teacherSubjects.map(({ classId, sessionId }) => ({
+        classId,
+        sessionId,
+      })),
+    },
+    include: {
+      student: { select: studentSafeSelect },
     },
   });
+
+  // De-duplicate — a student could be reachable via more than one of the
+  // teacher's class/subject assignments (e.g. two subjects, same class)
+  const seen = new Map();
+  for (const enrollment of enrollments) {
+    seen.set(enrollment.student.id, enrollment.student);
+  }
+
+  return Array.from(seen.values());
 };
 
 export const getStudent = async (studentId, schoolId) => {
   return prisma.user.findFirst({
+    where: { id: studentId, role: "STUDENT", schoolId },
+    select: studentSafeSelect,
+  });
+};
+
+// Teacher can only view a student if that student is enrolled in one of
+// the teacher's own class/subject assignments.
+export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
+  const teacherSubjects = await prisma.teacherSubject.findMany({
+    where: { teacherId, session: { schoolId } },
+    select: { classId: true, sessionId: true },
+  });
+
+  if (teacherSubjects.length === 0) {
+    return null;
+  }
+
+  const enrollment = await prisma.enrollment.findFirst({
     where: {
-      id: studentId,
-      role: "STUDENT",
-      schoolId,
+      studentId,
+      OR: teacherSubjects.map(({ classId, sessionId }) => ({
+        classId,
+        sessionId,
+      })),
+    },
+    include: {
+      student: { select: studentSafeSelect },
     },
   });
+
+  return enrollment ? enrollment.student : null;
 };
 
 export const updateStudent = async (studentId, schoolId, updateData) => {
   const { name, email } = updateData;
 
+  if (email) {
+    const existingUser = await prisma.user.findFirst({
+      where: { email, NOT: { id: studentId } },
+    });
+
+    if (existingUser) {
+      throw createHttpError(409, "An account with this email already exists");
+    }
+  }
+
   return prisma.user.updateMany({
-    where: {
-      id: studentId,
-      role: "STUDENT",
-      schoolId,
-    },
-    data: {
-      name,
-      email,
-    },
+    where: { id: studentId, role: "STUDENT", schoolId },
+    data: { name, email },
   });
 };
 
-export const deleteStudent = async (studentId, schoolId) => {
-  return prisma.user.deleteMany({
-    where: {
-      id: studentId,
-      role: "STUDENT",
-      schoolId,
-    },
+// Soft delete — deactivates the account rather than removing it, since a
+// student has financial (Invoice/Payment) and academic history attached
+// that must be preserved.
+export const deactivateStudent = async (studentId, schoolId) => {
+  const student = await prisma.user.findFirst({
+    where: { id: studentId, role: "STUDENT", schoolId },
+  });
+
+  if (!student) {
+    throw createHttpError(404, "Student not found or not in your school");
+  }
+
+  return prisma.user.update({
+    where: { id: studentId },
+    data: { isActive: false },
+    select: studentSafeSelect,
   });
 };
+
+// ---- existing "me" functions below are unchanged ----
 
 export const getMyProfile = async (user) => {
   const { id: userId, schoolId, role } = user;
@@ -76,41 +165,22 @@ export const getMyProfile = async (user) => {
   }
 
   const student = await prisma.user.findFirst({
-    where: {
-      id: userId,
-      schoolId,
-      role: "STUDENT",
-    },
-
+    where: { id: userId, schoolId, role: "STUDENT" },
     select: {
       id: true,
       name: true,
       email: true,
       role: true,
       createdAt: true,
-
-      school: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-
+      school: { select: { id: true, name: true } },
       enrollments: {
         select: {
           id: true,
           createdAt: true,
           updatedAt: true,
-
           class: {
-            select: {
-              id: true,
-              name: true,
-              createdAt: true,
-              updatedAt: true,
-            },
+            select: { id: true, name: true, createdAt: true, updatedAt: true },
           },
-
           session: {
             select: {
               id: true,
@@ -121,9 +191,7 @@ export const getMyProfile = async (user) => {
             },
           },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { createdAt: "desc" },
       },
     },
   });
@@ -141,39 +209,20 @@ export const getMyClasses = async (user) => {
   }
 
   const enrollments = await prisma.enrollment.findMany({
-    where: {
-      studentId,
-      session: {
-        schoolId,
-      },
-    },
-
+    where: { studentId, session: { schoolId } },
     include: {
       class: {
         include: {
           teacherSubjects: {
             include: {
               subject: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                  description: true,
-                },
+                select: { id: true, name: true, code: true, description: true },
               },
-
-              teacher: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                },
-              },
+              teacher: { select: { id: true, name: true, email: true } },
             },
           },
         },
       },
-
       session: {
         select: {
           id: true,
@@ -184,30 +233,23 @@ export const getMyClasses = async (user) => {
         },
       },
     },
-
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
   return enrollments.map((enrollment) => ({
     enrollmentId: enrollment.id,
-
     class: {
       id: enrollment.class.id,
       name: enrollment.class.name,
       createdAt: enrollment.class.createdAt,
       updatedAt: enrollment.class.updatedAt,
     },
-
     session: enrollment.session,
-
     subjects: enrollment.class.teacherSubjects.map((teacherSubject) => ({
       id: teacherSubject.subject.id,
       name: teacherSubject.subject.name,
       code: teacherSubject.subject.code,
       description: teacherSubject.subject.description,
-
       teacher: {
         id: teacherSubject.teacher.id,
         name: teacherSubject.teacher.name,
@@ -223,18 +265,10 @@ export const getMyResults = async (sessionId, termId, user) => {
   if (role !== "STUDENT") {
     throw createHttpError(403, "Only students can access their results.");
   }
+  if (!sessionId) throw createHttpError(400, "Session ID is required.");
+  if (!termId) throw createHttpError(400, "Term ID is required.");
 
-  if (!sessionId) {
-    throw createHttpError(400, "Session ID is required.");
-  }
-
-  if (!termId) {
-    throw createHttpError(400, "Term ID is required.");
-  }
-
-  const results = await getStudentResults(studentId, sessionId, termId, user);
-
-  return results;
+  return getStudentResults(studentId, sessionId, termId, user);
 };
 
 export const getMyAttendance = async (sessionId, termId, user) => {
@@ -243,32 +277,13 @@ export const getMyAttendance = async (sessionId, termId, user) => {
   if (role !== "STUDENT") {
     throw createHttpError(403, "Only students can access their attendance.");
   }
+  if (!sessionId) throw createHttpError(400, "Session ID is required.");
+  if (!termId) throw createHttpError(400, "Term ID is required.");
 
-  if (!sessionId) {
-    throw createHttpError(400, "Session ID is required.");
-  }
-
-  if (!termId) {
-    throw createHttpError(400, "Term ID is required.");
-  }
-
-  // Make sure the student belongs to this school/session
   const enrollment = await prisma.enrollment.findFirst({
-    where: {
-      studentId,
-      sessionId,
-      session: {
-        schoolId,
-      },
-    },
+    where: { studentId, sessionId, session: { schoolId } },
     include: {
-      student: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
+      student: { select: { id: true, name: true, email: true } },
       class: true,
       session: true,
     },
@@ -276,71 +291,40 @@ export const getMyAttendance = async (sessionId, termId, user) => {
 
   ensureExists(enrollment, "Enrollment");
 
-  // Make sure the term belongs to the requested session
   const term = await prisma.term.findFirst({
-    where: {
-      id: termId,
-      sessionId,
-    },
+    where: { id: termId, sessionId },
   });
 
   ensureExists(term, "Term");
 
-  // Get attendance belonging ONLY to this student's enrollment
   const attendanceRecords = await prisma.attendance.findMany({
     where: {
       enrollmentId: enrollment.id,
-      date: {
-        gte: term.startDate,
-        lte: term.endDate,
-      },
-      teacherSubject: {
-        sessionId,
-      },
+      date: { gte: term.startDate, lte: term.endDate },
+      teacherSubject: { sessionId },
     },
     include: {
       teacherSubject: {
         include: {
-          subject: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-            },
-          },
-          teacher: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
+          subject: { select: { id: true, name: true, code: true } },
+          teacher: { select: { id: true, name: true, email: true } },
         },
       },
     },
-    orderBy: {
-      date: "asc",
-    },
+    orderBy: { date: "asc" },
   });
 
   const totalDays = attendanceRecords.length;
-
   const presentDays = attendanceRecords.filter(
-    (record) => record.status === "PRESENT",
+    (r) => r.status === "PRESENT",
   ).length;
-
   const absentDays = attendanceRecords.filter(
-    (record) => record.status === "ABSENT",
+    (r) => r.status === "ABSENT",
   ).length;
-
-  const lateDays = attendanceRecords.filter(
-    (record) => record.status === "LATE",
-  ).length;
-
+  const lateDays = attendanceRecords.filter((r) => r.status === "LATE").length;
   const excusedDays = attendanceRecords.filter(
-    (record) => record.status === "EXCUSED",
+    (r) => r.status === "EXCUSED",
   ).length;
-
   const percentage =
     totalDays === 0 ? 0 : Number(((presentDays / totalDays) * 100).toFixed(2));
 
@@ -349,7 +333,6 @@ export const getMyAttendance = async (sessionId, termId, user) => {
     class: enrollment.class,
     session: enrollment.session,
     term,
-
     summary: {
       totalDays,
       presentDays,
@@ -358,7 +341,6 @@ export const getMyAttendance = async (sessionId, termId, user) => {
       excusedDays,
       percentage,
     },
-
     records: attendanceRecords,
   };
 };
