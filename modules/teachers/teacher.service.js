@@ -1,8 +1,26 @@
 import prisma from "../../config/prisma.js";
 import bcrypt from "bcrypt";
 
+const teacherSafeSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  schoolId: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 export const createTeacher = async (teacherData, schoolId) => {
   const { name, email, password } = teacherData;
+
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+
+  if (existingUser) {
+    const error = new Error("An account with this email already exists");
+    error.statusCode = 409;
+    throw error;
+  }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -14,51 +32,70 @@ export const createTeacher = async (teacherData, schoolId) => {
       role: "TEACHER",
       schoolId,
     },
+    select: teacherSafeSelect,
   });
 };
 
 export const getTeachers = async (schoolId) => {
   return prisma.user.findMany({
-    where: {
-      role: "TEACHER",
-      schoolId,
-    },
+    where: { role: "TEACHER", schoolId },
+    select: teacherSafeSelect,
   });
 };
 
 export const getTeacher = async (teacherId, schoolId) => {
   return prisma.user.findFirst({
-    where: {
-      id: teacherId,
-      role: "TEACHER",
-      schoolId,
-    },
+    where: { id: teacherId, role: "TEACHER", schoolId },
+    select: teacherSafeSelect,
   });
 };
 
 export const updateTeacher = async (teacherId, schoolId, updateData) => {
   const { name, email } = updateData;
 
+  if (email) {
+    const existingUser = await prisma.user.findFirst({
+      where: { email, NOT: { id: teacherId } },
+    });
+
+    if (existingUser) {
+      const error = new Error("An account with this email already exists");
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+
   return prisma.user.updateMany({
-    where: {
-      id: teacherId,
-      role: "TEACHER",
-      schoolId,
-    },
-    data: {
-      name,
-      email,
-    },
+    where: { id: teacherId, role: "TEACHER", schoolId },
+    data: { name, email },
   });
 };
 
 export const deleteTeacher = async (teacherId, schoolId) => {
-  return prisma.user.deleteMany({
-    where: {
-      id: teacherId,
-      role: "TEACHER",
-      schoolId,
-    },
+  const teacher = await prisma.user.findFirst({
+    where: { id: teacherId, role: "TEACHER", schoolId },
+  });
+
+  if (!teacher) {
+    const error = new Error("Teacher not found or not in your school");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const assignmentCount = await prisma.teacherSubject.count({
+    where: { teacherId },
+  });
+
+  if (assignmentCount > 0) {
+    const error = new Error(
+      "This teacher cannot be deleted because they still have active class/subject assignments. Remove those assignments first.",
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return prisma.user.delete({
+    where: { id: teacherId },
   });
 };
 
@@ -69,13 +106,7 @@ export const getMyProfile = async (teacherId, schoolId) => {
       schoolId,
       role: "TEACHER",
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      createdAt: true,
-    },
+    select: teacherSafeSelect,
   });
 };
 
