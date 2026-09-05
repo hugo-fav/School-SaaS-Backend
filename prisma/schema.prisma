@@ -12,6 +12,8 @@ model School {
   name      String
   createdAt DateTime @default(now())
 
+  isActive  Boolean  @default(true)
+
   paystackSecretKey String? // encrypted at rest
   paystackPublicKey String?
 
@@ -32,6 +34,8 @@ model User {
   password String
 
   role Role @default(STUDENT)
+
+  isActive  Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
