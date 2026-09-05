@@ -8,7 +8,7 @@ export const createTeacherSubject = asyncHandler(async (req, res) => {
     req.user.schoolId,
   );
 
-  console.log(assignment);
+  // console.log(assignment);
 
   res.status(201).json({
     message: "Teacher assigned successfully",
@@ -64,5 +64,7 @@ export const deleteTeacherSubject = asyncHandler(async (req, res) => {
     req.user.schoolId,
   );
 
-  res.status(200).json({ message: "Teacher subject deleted successfully" });
+  res
+    .status(200)
+    .json({ message: "Teacher subject deleted successfully", data: result });
 });

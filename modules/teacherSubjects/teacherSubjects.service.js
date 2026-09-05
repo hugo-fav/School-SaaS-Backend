@@ -209,11 +209,17 @@ export const updateTeacherSubject = async (id, schoolId, data) => {
     });
 
     if (!session) {
-      createHttpError(404, "Session not found or not in your school");
+      const error = new Error("Session not found or not in your school");
+      error.statusCode = 404;
+      throw error;
     }
 
     if (!session.isActive) {
-      createHttpError(400, "Session not found or not in your school");
+      const error = new Error(
+        "Teacher can only be reassigned during the active academic session",
+      );
+      error.statusCode = 400;
+      throw error;
     }
 
     // Prevent duplicate assignment
