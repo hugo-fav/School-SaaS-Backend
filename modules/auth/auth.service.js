@@ -3,7 +3,15 @@ import bcrypt from "bcrypt";
 import { generateToken } from "../../utils/token.js";
 
 export const registerUser = async (userData) => {
-  const { name, email, password, schoolName, role } = userData;
+  const { name, email, password, schoolName } = userData;
+
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+
+  if (existingUser) {
+    const error = new Error("An account with this email already exists");
+    error.statusCode = 409;
+    throw error;
+  }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -12,7 +20,7 @@ export const registerUser = async (userData) => {
       name,
       email,
       password: hashedPassword,
-      role: role || "ADMIN",
+      role: "ADMIN", // registration always creates a school admin
       school: {
         create: {
           name: schoolName,
@@ -36,11 +44,12 @@ export const loginUser = async (loginData) => {
 
   const user = await prisma.user.findUnique({
     where: { email },
+    include: { school: true },
   });
 
   if (!user) {
-    const error = new Error("User not found");
-    error.statusCode = 404;
+    const error = new Error("Invalid credentials");
+    error.statusCode = 401;
     throw error;
   }
 
@@ -52,7 +61,20 @@ export const loginUser = async (loginData) => {
     throw error;
   }
 
-  const token = generateToken(user);
+  if (!user.isActive) {
+    const error = new Error("This account has been deactivated");
+    error.statusCode = 403;
+    throw error;
+  }
 
-  return { user, token };
+  if (!user.school.isActive) {
+    const error = new Error("This school's account is currently deactivated");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const token = generateToken(user);
+  const { password: _password, ...safeUser } = user;
+
+  return { user: safeUser, token };
 };
