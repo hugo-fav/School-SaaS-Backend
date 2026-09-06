@@ -66,12 +66,20 @@ export const enrollStudentInClass = async (
 
 // Returns a class with its enrolled students (optionally filtered to one
 // session) and its teacher/subject assignments.
-export const getClassWithMembers = async (classId, schoolId, sessionId) => {
+export const getClassWithMembers = async (
+  classId,
+  schoolId,
+  sessionId,
+  includeInactive = false,
+) => {
   return prisma.class.findFirst({
     where: { id: classId, schoolId },
     include: {
       enrollments: {
-        where: sessionId ? { sessionId } : undefined,
+        where: {
+          ...(sessionId ? { sessionId } : {}),
+          ...(includeInactive ? {} : { status: "ACTIVE" }),
+        },
         include: {
           student: { select: { id: true, name: true, email: true } },
           session: { select: { id: true, name: true, isActive: true } },

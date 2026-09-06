@@ -53,29 +53,23 @@ export const getStudentsForTeacher = async (teacherId, schoolId) => {
     select: { classId: true, sessionId: true },
   });
 
-  if (teacherSubjects.length === 0) {
-    return [];
-  }
+  if (teacherSubjects.length === 0) return [];
 
   const enrollments = await prisma.enrollment.findMany({
     where: {
+      status: "ACTIVE",
       OR: teacherSubjects.map(({ classId, sessionId }) => ({
         classId,
         sessionId,
       })),
     },
-    include: {
-      student: { select: studentSafeSelect },
-    },
+    include: { student: { select: studentSafeSelect } },
   });
 
-  // De-duplicate — a student could be reachable via more than one of the
-  // teacher's class/subject assignments (e.g. two subjects, same class)
   const seen = new Map();
   for (const enrollment of enrollments) {
     seen.set(enrollment.student.id, enrollment.student);
   }
-
   return Array.from(seen.values());
 };
 
@@ -94,21 +88,18 @@ export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
     select: { classId: true, sessionId: true },
   });
 
-  if (teacherSubjects.length === 0) {
-    return null;
-  }
+  if (teacherSubjects.length === 0) return null;
 
   const enrollment = await prisma.enrollment.findFirst({
     where: {
       studentId,
+      status: "ACTIVE",
       OR: teacherSubjects.map(({ classId, sessionId }) => ({
         classId,
         sessionId,
       })),
     },
-    include: {
-      student: { select: studentSafeSelect },
-    },
+    include: { student: { select: studentSafeSelect } },
   });
 
   return enrollment ? enrollment.student : null;

@@ -65,12 +65,13 @@ export const enrollStudentInClass = asyncHandler(async (req, res) => {
 
 export const getClassWithMembers = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { sessionId } = req.query;
+  const { sessionId, includeInactive } = req.query;
 
   const classData = await classService.getClassWithMembers(
     id,
     req.user.schoolId,
     sessionId,
+    includeInactive === "true",
   );
 
   if (!classData) {
