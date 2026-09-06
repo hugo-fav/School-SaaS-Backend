@@ -5,32 +5,15 @@ import { ensureExists } from "../../utils/validations/ensureExists.js";
 export const createPromotionHistory = async (data, user) => {
   return prisma.$transaction(async (tx) => {
     const { id: userId, schoolId, role } = user;
-
     const { enrollmentId, toClassId, status, remark } = data;
 
-    if (!enrollmentId) {
-      throw createHttpError(400, "Enrollment ID is required.");
-    }
-
-    if (!status) {
-      throw createHttpError(400, "Status is required.");
-    }
+    if (!enrollmentId) throw createHttpError(400, "Enrollment ID is required.");
+    if (!status) throw createHttpError(400, "Status is required.");
 
     const enrollment = await tx.enrollment.findFirst({
-      where: {
-        id: enrollmentId,
-        session: {
-          schoolId,
-        },
-      },
+      where: { id: enrollmentId, session: { schoolId } },
       include: {
-        student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        student: { select: { id: true, name: true, email: true } },
         class: true,
         session: true,
       },
@@ -50,62 +33,40 @@ export const createPromotionHistory = async (data, user) => {
     }
 
     const existingPromotion = await tx.promotionHistory.findUnique({
-      where: {
-        enrollmentId,
-      },
+      where: { enrollmentId },
     });
 
     if (existingPromotion) {
-      throw createHttpError(400, "This enrollment has already been promoted. ");
+      throw createHttpError(400, "This enrollment has already been promoted.");
     }
 
     const validStatuses = ["PROMOTED", "REPEATED", "GRADUATED", "WITHDRAWN"];
-
     if (!validStatuses.includes(status)) {
       throw createHttpError(400, "Invalid promotion status.");
     }
 
-    if (status === "PROMOTED") {
-      if (!toClassId) {
-        throw createHttpError(
-          400,
-          "Destination class is required for promotion students.",
-        );
-      }
+    if ((status === "PROMOTED" || status === "REPEATED") && !toClassId) {
+      throw createHttpError(
+        400,
+        `Destination class is required for ${status === "PROMOTED" ? "promoted" : "repeating"} students.`,
+      );
     }
 
-    if (status === "REPEATED") {
-      if (!toClassId) {
-        throw createHttpError(
-          400,
-          "Destination class is required for repeating students.",
-        );
-      }
-    }
-
-    if (status === "GRADUATED" || status === "WITHDRAWN") {
-      if (toClassId) {
-        throw createHttpError(
-          400,
-          `${status} students cannot have a destination class. `,
-        );
-      }
+    if ((status === "GRADUATED" || status === "WITHDRAWN") && toClassId) {
+      throw createHttpError(
+        400,
+        `${status} students cannot have a destination class.`,
+      );
     }
 
     let destinationClass = null;
-
     if (toClassId) {
       destinationClass = await tx.class.findFirst({
-        where: {
-          id: toClassId,
-          schoolId,
-        },
+        where: { id: toClassId, schoolId },
       });
-
       ensureExists(destinationClass, "Destination class");
     }
 
-    // prevent self-promotion
     if (status === "PROMOTED" && destinationClass.id === enrollment.classId) {
       throw createHttpError(
         400,
@@ -113,12 +74,34 @@ export const createPromotionHistory = async (data, user) => {
       );
     }
 
-    // prevent repeating students from moving to a different class
     if (status === "REPEATED" && destinationClass.id !== enrollment.classId) {
       throw createHttpError(
         400,
         "Repeated students must remain in the same class.",
       );
+    }
+
+    // Score/attendance checks now actually run, and only apply to
+    // PROMOTED/REPEATED — a graduating or withdrawing student shouldn't be
+    // blocked by missing scores/attendance (they're leaving, not advancing).
+    if (status === "PROMOTED" || status === "REPEATED") {
+      const scoreCount = await tx.score.count({ where: { enrollmentId } });
+      if (scoreCount === 0) {
+        throw createHttpError(
+          400,
+          "This student cannot be promoted because they have no scores recorded for the current session.",
+        );
+      }
+
+      const attendanceCount = await tx.attendance.count({
+        where: { enrollmentId },
+      });
+      if (attendanceCount === 0) {
+        throw createHttpError(
+          400,
+          "This student cannot be promoted because they have no attendance records for the current session.",
+        );
+      }
     }
 
     const promotion = await tx.promotionHistory.create({
@@ -132,77 +115,35 @@ export const createPromotionHistory = async (data, user) => {
       },
     });
 
-    await tx.enrollment.update({
-      where: {
-        id: enrollmentId,
-      },
-      data: {
-        classId: toClassId,
-      },
-    });
-
-    return tx.promotionHistory.findUnique({
-      where: {
-        id: promotion.id,
-      },
-      include: {
-        enrollment: {
-          include: {
-            student: true,
-            class: true,
-            session: true,
-          },
-        },
-        fromClass: true,
-        toClass: true,
-        promotedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-    });
-
-    // ensure student has scores for the current session before promoting
-    const scoreCount = await tx.score.count({
-      where: {
-        enrollmentId,
-      },
-    });
-
-    if (scoreCount === 0) {
-      throw createHttpError(
-        400,
-        "This student cannot be promoted because they have no scores recorded for the current session.",
-      );
-    }
-
-    // ensure student has attendance records for the current session before promoting
-    const attendanceCount = await tx.attendance.count({
-      where: {
-        enrollmentId,
-      },
-    });
-
-    if (attendanceCount === 0) {
-      throw createHttpError(
-        400,
-        "This student cannot be promoted because they have no attendance records for the current session.",
-      );
-    }
-
-    // update the enrollment's classId if the student is promoted or repeated
+    // Exactly one Enrollment update, based on status:
     if (status === "PROMOTED" || status === "REPEATED") {
       await tx.enrollment.update({
         where: { id: enrollmentId },
         data: { classId: toClassId },
       });
+    } else {
+      // GRADUATED or WITHDRAWN — never null out classId; the student's
+      // last class remains on record, only their status changes.
+      await tx.enrollment.update({
+        where: { id: enrollmentId },
+        data: {
+          status, // "GRADUATED" | "WITHDRAWN" — new field
+          leftAt: new Date(), // new field
+        },
+      });
     }
 
-    return promotion;
+    return tx.promotionHistory.findUnique({
+      where: { id: promotion.id },
+      include: {
+        enrollment: { include: { student: true, class: true, session: true } },
+        fromClass: true,
+        toClass: true,
+        promotedBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+      },
+    });
   });
 };
 
