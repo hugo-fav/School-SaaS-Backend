@@ -142,6 +142,9 @@ model Term {
 model Enrollment {
   id String @id @default(uuid())
 
+  status EnrollmentStatus @default(ACTIVE)
+  leftAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -155,9 +158,7 @@ model Enrollment {
   session   AcademicSession @relation(fields: [sessionId], references: [id])
 
   scores Score[]
-
   attendance Attendance[]
-
   promotions  PromotionHistory[]
   reportCards ReportCard[]
   invoices    Invoice[]
@@ -415,6 +416,12 @@ enum Role {
   ADMIN
   TEACHER
   STUDENT
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  GRADUATED
+  WITHDRAWN
 }
 
 enum AssessmentType {
