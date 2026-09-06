@@ -103,6 +103,15 @@ export const createBulkAttendance = async (data, user) => {
       }
     }
 
+    for (const enrollment of enrollments) {
+      if (enrollment.status !== "ACTIVE") {
+        throw createHttpError(
+          400,
+          `${enrollment.student.name}'s enrollment is ${enrollment.status.toLowerCase()} — attendance cannot be recorded.`,
+        );
+      }
+    }
+
     const existingAttendance = await tx.attendance.findMany({
       where: {
         teacherSubjectId,

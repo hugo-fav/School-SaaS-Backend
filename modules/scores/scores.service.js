@@ -121,6 +121,15 @@ export const createBulkScores = async (data, user) => {
       }
     }
 
+    for (const enrollment of enrollments) {
+      if (enrollment.status !== "ACTIVE") {
+        throw createHttpError(
+          400,
+          `${enrollment.student.name}'s enrollment is ${enrollment.status.toLowerCase()} — scores cannot be recorded.`,
+        );
+      }
+    }
+
     for (const item of scores) {
       validateScoreRange(item.obtainedScore, assessment.maxScore);
     }
@@ -322,27 +331,15 @@ export const getScores = async (filters, user) => {
 };
 
 export const getScoreById = async (id, schoolId) => {
-  return prisma.score.findFirst({
+  const score = await prisma.score.findFirst({
     where: {
       id,
-      assessment: {
-        teacherSubject: {
-          session: {
-            schoolId,
-          },
-        },
-      },
+      assessment: { teacherSubject: { session: { schoolId } } },
     },
     include: {
       enrollment: {
         include: {
-          student: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
+          student: { select: { id: true, name: true, email: true } },
           class: true,
           session: true,
         },
@@ -352,12 +349,7 @@ export const getScoreById = async (id, schoolId) => {
           teacherSubject: {
             include: {
               teacher: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  role: true,
-                },
+                select: { id: true, name: true, email: true, role: true },
               },
               subject: true,
               class: true,
@@ -367,18 +359,11 @@ export const getScoreById = async (id, schoolId) => {
           term: true,
         },
       },
-      gradedBy: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
+      gradedBy: { select: { id: true, name: true, email: true, role: true } },
     },
   });
 
-  ensureExists(score, "score");
+  ensureExists(score, "Score");
 
   return score;
 };
