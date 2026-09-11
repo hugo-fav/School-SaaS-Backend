@@ -4,7 +4,9 @@ const VALID_TERMS = ["First Term", "Second Term", "Third Term"];
 
 export const createTerm = async (data, schoolId) => {
   return prisma.$transaction(async (tx) => {
-    const { sessionId, name, startDate, endDate, isActive } = data;
+    const { sessionId, name, isActive } = data;
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
 
     if (!VALID_TERMS.includes(name)) {
       const error = new Error(
@@ -14,7 +16,6 @@ export const createTerm = async (data, schoolId) => {
       throw error;
     }
 
-    // Check if the term already exists for the given session and school
     const session = await tx.academicSession.findFirst({
       where: { id: sessionId, schoolId },
     });
@@ -25,11 +26,7 @@ export const createTerm = async (data, schoolId) => {
       throw error;
     }
 
-    //  Ensure that dates fall within the academic session
-    if (
-      new Date(startDate) < session.startDate ||
-      new Date(endDate) > session.endDate
-    ) {
+    if (startDate < session.startDate || endDate > session.endDate) {
       const error = new Error(
         "Term dates must fall within the academic session dates.",
       );
@@ -37,12 +34,8 @@ export const createTerm = async (data, schoolId) => {
       throw error;
     }
 
-    // Prevent duplicate term names within the same session
     const existingTerm = await tx.term.findFirst({
-      where: {
-        sessionId,
-        name,
-      },
+      where: { sessionId, name },
     });
 
     if (existingTerm) {
@@ -51,12 +44,11 @@ export const createTerm = async (data, schoolId) => {
       throw error;
     }
 
-    // prevent overlapping term dates
     const overlappingTerm = await tx.term.findFirst({
       where: {
         sessionId,
-        startDate: { lte: new Date(endDate) },
-        endDate: { gte: new Date(startDate) },
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
       },
     });
 
@@ -66,7 +58,6 @@ export const createTerm = async (data, schoolId) => {
       throw error;
     }
 
-    // only one active term per session
     if (isActive === true) {
       await tx.term.updateMany({
         where: { sessionId, isActive: true },
@@ -74,9 +65,7 @@ export const createTerm = async (data, schoolId) => {
       });
     }
 
-    const termCount = await tx.term.count({
-      where: { sessionId },
-    });
+    const termCount = await tx.term.count({ where: { sessionId } });
 
     if (termCount >= 3) {
       const error = new Error("A session can only have a maximum of 3 terms.");
@@ -87,11 +76,12 @@ export const createTerm = async (data, schoolId) => {
     return tx.term.create({
       data: {
         ...data,
+        startDate,
+        endDate,
       },
     });
   });
 };
-
 export const getTerms = async (schoolId) => {
   return prisma.term.findMany({
     where: {
@@ -133,9 +123,8 @@ export const getTerm = async (id, schoolId) => {
 
 export const updateTerm = async (id, schoolId, data) => {
   return prisma.$transaction(async (tx) => {
-    // check if the term exists and belongs to the school
     const currentTerm = await tx.term.findFirst({
-      where: { id, session: { schoolId }},
+      where: { id, session: { schoolId } },
     });
 
     if (!currentTerm) {
@@ -154,7 +143,6 @@ export const updateTerm = async (id, schoolId, data) => {
       }
     }
 
-    // get the academic session
     const session = await tx.academicSession.findFirst({
       where: { id: currentTerm.sessionId, schoolId },
     });
@@ -165,7 +153,6 @@ export const updateTerm = async (id, schoolId, data) => {
       throw error;
     }
 
-    // prevent duplicate term names
     if (data.name) {
       const existingTerm = await tx.term.findFirst({
         where: {
@@ -182,22 +169,19 @@ export const updateTerm = async (id, schoolId, data) => {
       }
     }
 
-    // determine date after update
-    const startDate = data.startDate ?? currentTerm.startDate;
-    const endDate = data.endDate ?? currentTerm.endDate;
+    // Convert once — used for both validation and the final write
+    const startDate = data.startDate
+      ? new Date(data.startDate)
+      : currentTerm.startDate;
+    const endDate = data.endDate ? new Date(data.endDate) : currentTerm.endDate;
 
-    // Ensure date are valid
     if (startDate >= endDate) {
       const error = new Error("Start date must be earlier than end date.");
       error.statusCode = 400;
       throw error;
     }
 
-    // Ensure that dates fall within the academic session
-    if (
-      new Date(startDate) < session.startDate ||
-      new Date(endDate) > session.endDate
-    ) {
+    if (startDate < session.startDate || endDate > session.endDate) {
       const error = new Error(
         "Term dates must fall within the academic session dates.",
       );
@@ -205,7 +189,6 @@ export const updateTerm = async (id, schoolId, data) => {
       throw error;
     }
 
-    // prevent overlapping term dates
     const overlappingTerm = await tx.term.findFirst({
       where: {
         sessionId: currentTerm.sessionId,
@@ -221,7 +204,6 @@ export const updateTerm = async (id, schoolId, data) => {
       throw error;
     }
 
-    // prevent deactivation of the only active
     if (currentTerm.isActive && data.isActive === false) {
       const error = new Error(
         "You cannot deactivate the only active term in the session. Activate another term first before deactivating this one.",
@@ -230,7 +212,6 @@ export const updateTerm = async (id, schoolId, data) => {
       throw error;
     }
 
-    // Activate this term and deactivate others
     if (data.isActive === true) {
       await tx.term.updateMany({
         where: {
@@ -242,10 +223,13 @@ export const updateTerm = async (id, schoolId, data) => {
       });
     }
 
-    // update the term
     return tx.term.update({
       where: { id },
-      data: data,
+      data: {
+        ...data,
+        ...(data.startDate && { startDate }),
+        ...(data.endDate && { endDate }),
+      },
     });
   });
 };

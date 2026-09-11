@@ -101,7 +101,14 @@ export const createInvoice = async ({ feeId, enrollmentId, schoolId }) => {
 
       enrollment: {
         include: {
-          student: true,
+          student: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            schoolId: true,
+            isActive: true,
+          },
           class: true,
           session: true,
         },

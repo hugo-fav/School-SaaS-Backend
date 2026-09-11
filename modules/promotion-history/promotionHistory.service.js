@@ -136,7 +136,13 @@ export const createPromotionHistory = async (data, user) => {
     return tx.promotionHistory.findUnique({
       where: { id: promotion.id },
       include: {
-        enrollment: { include: { student: true, class: true, session: true } },
+        enrollment: {
+          include: {
+            student: { select: { id: true, name: true, email: true } },
+            class: true,
+            session: true,
+          },
+        },
         fromClass: true,
         toClass: true,
         promotedBy: {

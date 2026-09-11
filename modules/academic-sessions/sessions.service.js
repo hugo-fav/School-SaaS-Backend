@@ -3,6 +3,8 @@ import prisma from "../../config/prisma.js";
 // Create Academic Session
 export const createSession = async (data, schoolId) => {
   return prisma.$transaction(async (tx) => {
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
     const existingSession = await tx.academicSession.findFirst({
       where: {
         schoolId,
@@ -20,10 +22,10 @@ export const createSession = async (data, schoolId) => {
       where: {
         schoolId,
         startDate: {
-          lte: data.endDate,
+          lte: endDate,
         },
         endDate: {
-          gte: data.startDate,
+          gte: startDate,
         },
       },
     });
@@ -51,6 +53,8 @@ export const createSession = async (data, schoolId) => {
     return tx.academicSession.create({
       data: {
         ...data,
+        startDate,
+        endDate,
         schoolId,
       },
     });
@@ -106,8 +110,8 @@ export const updateSession = async (id, schoolId, data) => {
     }
 
     // Determine which dates to validate
-    const startDate = data.startDate ?? currentSession.startDate;
-    const endDate = data.endDate ?? currentSession.endDate;
+    const startDate = new Date(data.startDate ?? currentSession.startDate);
+    const endDate = new Date(data.endDate ?? currentSession.endDate);
 
     // Prevent overlapping sessions
     const overlappingSession = await tx.academicSession.findFirst({

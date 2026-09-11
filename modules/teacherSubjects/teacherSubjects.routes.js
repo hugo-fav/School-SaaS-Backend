@@ -9,7 +9,7 @@ import {
 import {
   validateCreateTeacherSubject,
   validateUpdateTeacherSubject,
-} from "./teacherSubject.validation.js";
+} from "./teacherSubjects.validation.js";
 import { protect } from "../../middlewares/auth.middleware.js";
 import { authorize } from "../../middlewares/authorization.middleware.js";
 

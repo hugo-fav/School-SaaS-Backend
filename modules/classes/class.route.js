@@ -46,4 +46,3 @@ router.get(
 );
 
 export default router;
-s;
