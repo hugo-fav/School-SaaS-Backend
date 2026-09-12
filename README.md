@@ -5,7 +5,7 @@ students, teachers, attendance, results, and fee/invoice/payment collection —
 built to serve multiple independent schools from a single deployment.
 
 **Repository:** https://github.com/hugo-fav/School-SaaS-Backend
-**Live deployment:** Not yet deployed.
+**Live deployment:** https://school-saas-backend-30z2.onrender.com
 
 ---
 
@@ -21,7 +21,7 @@ built to serve multiple independent schools from a single deployment.
 - [Multi-Tenancy Model](#multi-tenancy-model)
 - [Modules](#modules)
 - [API Base URL](#api-base-url)
-- [License](#license)
+
 
 ---
 
@@ -42,15 +42,15 @@ principle carried through every module (see
 
 ## Tech Stack
 
-| Layer      | Technology                                                                                                                          |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime    | Node.js (ESM — `"type": "module"`)                                                                                                  |
-| Framework  | Express                                                                                                                             |
-| Database   | PostgreSQL                                                                                                                          |
-| ORM        | Prisma                                                                                                                              |
-| Validation | Joi                                                                                                                                 |
-| Auth       | JWT — `protect` middleware verifies `Authorization: Bearer <token>` and attaches the decoded `{ id, schoolId, role }` to `req.user` |
-| Payments   | Paystack (bring-your-own-keys per school, encrypted at rest with AES-256-GCM)                                                       |
+| Layer          | Technology                          |
+|----------------|--------------------------------------|
+| Runtime        | Node.js (ESM — `"type": "module"`)   |
+| Framework      | Express                              |
+| Database       | PostgreSQL                           |
+| ORM            | Prisma                               |
+| Validation     | Joi                                  |
+| Auth           | JWT — `protect` middleware verifies `Authorization: Bearer <token>` and attaches the decoded `{ id, schoolId, role }` to `req.user` |
+| Payments       | Paystack (bring-your-own-keys per school, encrypted at rest with AES-256-GCM) |
 
 ## Architecture
 
@@ -154,12 +154,12 @@ npm run dev
 
 ## Environment Variables
 
-| Variable         | Description                                                                                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`   | PostgreSQL connection string                                                                                                                                  |
-| `ENCRYPTION_KEY` | 32-byte hex key used to encrypt school Paystack secret keys at rest. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `JWT_SECRET`     | Secret used to sign/verify auth tokens _(assumption — confirm)_                                                                                               |
-| `PORT`           | Port the server listens on _(assumption — confirm)_                                                                                                           |
+| Variable          | Description                                             |
+|--------------------|-----------------------------------------------------------|
+| `DATABASE_URL`     | PostgreSQL connection string                              |
+| `ENCRYPTION_KEY`   | 32-byte hex key used to encrypt school Paystack secret keys at rest. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `JWT_SECRET`       | Secret used to sign/verify auth tokens *(assumption — confirm)* |
+| `PORT`             | Port the server listens on *(assumption — confirm)*        |
 
 **Never commit `.env` to version control.** Confirm it's listed in
 `.gitignore` before your first push.
@@ -194,30 +194,30 @@ an additional ownership check is applied on top of the tenant check.
 
 Detailed documentation for each module lives in [`docs/`](docs/):
 
-| Module                               | Docs                                                                                       | Status |
-| ------------------------------------ | ------------------------------------------------------------------------------------------ | ------ |
-| Auth                                 | [`docs/auth.md`](docs/auth.md)                                                             | ✅     |
-| Schools                              | [`docs/schools.md`](docs/schools.md)                                                       | ✅     |
-| Students                             | [`docs/students.md`](docs/students.md)                                                     | ✅     |
-| Teachers                             | [`docs/teachers.md`](docs/teachers.md)                                                     | ✅     |
-| Classes                              | [`docs/classes.md`](docs/classes.md)                                                       | ✅     |
-| Subjects                             | [`docs/subjects.md`](docs/subjects.md)                                                     | ✅     |
-| Academic Sessions                    | [`docs/academic-sessions.md`](docs/academic-sessions.md)                                   | ✅     |
-| Terms                                | [`docs/terms.md`](docs/terms.md)                                                           | ✅     |
-| Teacher Subjects                     | [`docs/teacher-subjects.md`](docs/teacher-subjects.md)                                     | ✅     |
-| Enrollments                          | [`docs/enrollments.md`](docs/enrollments.md)                                               | ✅     |
-| Enrollment Status Management         | [`docs/enrollment-status.md`](docs/enrollment-status.md)                                   | ✅     |
-| Assessments                          | [`docs/assessments.md`](docs/assessments.md)                                               | ✅     |
-| Attendance                           | [`docs/attendance.md`](docs/attendance.md)                                                 | ✅     |
-| Student Attendance Feature           | [`docs/student-attendance-feature.md`](docs/student-attendance-feature.md)                 | ✅     |
-| Scores                               | [`docs/scores.md`](docs/scores.md)                                                         | ✅     |
-| Promotion History                    | [`docs/promotion-history.md`](docs/promotion-history.md)                                   | ✅     |
-| Report Cards                         | [`docs/report-card.md`](docs/report-card.md)                                               | ✅     |
-| Report Card & Attendance Integration | [`docs/report-card-attendance-integration.md`](docs/report-card-attendance-integration.md) | ✅     |
-| Results                              | [`docs/result.md`](docs/result.md)                                                         | ✅     |
-| **Fees**                             | [`docs/fees.md`](docs/fees.md)                                                             | ✅ New |
-| **Invoices**                         | [`docs/invoices.md`](docs/invoices.md)                                                     | ✅ New |
-| **Payments** (incl. webhook)         | [`docs/payments.md`](docs/payments.md)                                                     | ✅     |
+| Module                          | Docs                                                                          | Status |
+|----------------------------------|--------------------------------------------------------------------------------|--------|
+| Auth                             | [`docs/auth.md`](docs/auth.md)                                               | ✅ |
+| Schools                          | [`docs/schools.md`](docs/schools.md)                                         | ✅ |
+| Students                         | [`docs/students.md`](docs/students.md)                                       | ✅ |
+| Teachers                         | [`docs/teachers.md`](docs/teachers.md)                                       | ✅ |
+| Classes                          | [`docs/classes.md`](docs/classes.md)                                         | ✅ |
+| Subjects                         | [`docs/subjects.md`](docs/subjects.md)                                       | ✅ |
+| Academic Sessions                | [`docs/academic-sessions.md`](docs/academic-sessions.md)                     | ✅ |
+| Terms                            | [`docs/terms.md`](docs/terms.md)                                             | ✅ |
+| Teacher Subjects                 | [`docs/teacher-subjects.md`](docs/teacher-subjects.md)                       | ✅ |
+| Enrollments                      | [`docs/enrollments.md`](docs/enrollments.md)                                 | ✅ |
+| Enrollment Status Management      | [`docs/enrollment-status.md`](docs/enrollment-status.md)                     | ✅ |
+| Assessments                      | [`docs/assessments.md`](docs/assessments.md)                                 | ✅ |
+| Attendance                       | [`docs/attendance.md`](docs/attendance.md)                                   | ✅ |
+| Student Attendance Feature       | [`docs/student-attendance-feature.md`](docs/student-attendance-feature.md)   | ✅ |
+| Scores                           | [`docs/scores.md`](docs/scores.md)                                           | ✅ |
+| Promotion History                | [`docs/promotion-history.md`](docs/promotion-history.md)                     | ✅ |
+| Report Cards                     | [`docs/report-card.md`](docs/report-card.md)                                 | ✅ |
+| Report Card & Attendance Integration | [`docs/report-card-attendance-integration.md`](docs/report-card-attendance-integration.md) | ✅ |
+| Results                          | [`docs/result.md`](docs/result.md)                                           | ✅ |
+| **Fees**                         | [`docs/fees.md`](docs/fees.md)                                               | ✅ New |
+| **Invoices**                     | [`docs/invoices.md`](docs/invoices.md)                                       | ✅ New |
+| **Payments** (incl. webhook)     | [`docs/payments.md`](docs/payments.md)                                       | ✅ |
 
 > Auth, Schools, Students, Teachers, and Classes have all been documented
 > above. Everything in this table has been converted from the original
@@ -232,3 +232,4 @@ All routes are prefixed with:
 ```
 
 For example: `POST /api/v1/payments/initialize`.
+
