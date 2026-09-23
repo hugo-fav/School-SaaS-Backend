@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import schoolRoute from "./modules/schools/school.route.js";
 import studentRoute from "./modules/students/student.route.js";
 import teacherRoute from "./modules/teachers/teacher.route.js";
@@ -21,6 +22,17 @@ import paymentRoutes from "./modules/payments/payment.routes.js";
 import paymentWebhookRoutes from "./modules/payments/payment.webhook.route.js";
 
 const app = express();
+
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "https://school-saas-backend-30z2.onrender.com",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 app.use(
   express.json({
