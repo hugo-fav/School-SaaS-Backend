@@ -88,7 +88,7 @@ export const updateSubject = async (id, schoolId, data) => {
       where: {
         schoolId,
         name: data.name,
-        OR: [{ id }],
+        NOT: { id },
       },
     });
 
