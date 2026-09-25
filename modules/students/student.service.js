@@ -16,7 +16,7 @@ const studentSafeSelect = {
 };
 
 export const createStudent = async (studentData, schoolId) => {
-  const { name, email, password } = studentData;
+  const { name, email, password, classId } = studentData; // Extract classId
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
 
@@ -26,24 +26,67 @@ export const createStudent = async (studentData, schoolId) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  return prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-      role: "STUDENT",
-      schoolId,
-    },
-    select: studentSafeSelect,
+  // Use a transaction so we can create the user AND enroll them instantly
+  return prisma.$transaction(async (tx) => {
+    const student = await tx.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: "STUDENT",
+        schoolId,
+      },
+      select: studentSafeSelect,
+    });
+
+    // If the admin assigned a class during creation, create the Enrollment record
+    if (classId) {
+      // Find the currently active academic session for this school
+      const activeSession = await tx.academicSession.findFirst({
+        where: { schoolId, isActive: true },
+      });
+
+      if (activeSession) {
+        await tx.enrollment.create({
+          data: {
+            studentId: student.id,
+            classId: classId,
+            sessionId: activeSession.id,
+            status: "ACTIVE",
+          },
+        });
+      }
+    }
+
+    return student;
   });
 };
 
-// Admin sees every student in the school.
+// Admin sees every student in the school, now including their active class.
 export const getStudents = async (schoolId) => {
-  return prisma.user.findMany({
+  const students = await prisma.user.findMany({
     where: { role: "STUDENT", schoolId },
-    select: studentSafeSelect,
+    select: {
+      ...studentSafeSelect,
+      enrollments: {
+        where: { status: "ACTIVE" }, // Only get their active enrollment
+        include: {
+          class: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1, // Grab the most recent active enrollment
+      },
+    },
   });
+
+  // Map the response so the frontend receives it in the exact format it expects
+  return students.map((student) => ({
+    ...student,
+    class: student.enrollments[0]?.class || null,
+    enrollment: student.enrollments[0]?.class?.name || "Unassigned",
+  }));
 };
 
 // Teacher sees only students enrolled in classes they're assigned to teach.

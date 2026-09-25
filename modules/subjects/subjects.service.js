@@ -68,7 +68,7 @@ export const updateSubject = async (id, schoolId, data) => {
     error.statusCode = 400;
     throw error;
   }
-  
+
   //  check if the subject exists and belongs to the school
   const subject = await prisma.subject.findFirst({
     where: { id, schoolId },
