@@ -171,6 +171,7 @@ export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
 export const updateStudent = async (studentId, schoolId, updateData) => {
   const { name, email, classId } = updateData;
 
+  // 1. Verify email uniqueness if email is being updated
   if (email) {
     const existingUser = await prisma.user.findFirst({
       where: { email, NOT: { id: studentId } },
@@ -182,14 +183,24 @@ export const updateStudent = async (studentId, schoolId, updateData) => {
   }
 
   return prisma.$transaction(async (tx) => {
-    // 1. Update basic info
-    const updatedUser = await tx.user.updateMany({
+    // 2. Verify student exists in this school first
+    const existingStudent = await tx.user.findFirst({
       where: { id: studentId, role: "STUDENT", schoolId },
-      data: { name, email },
     });
 
-    // 2. If a new classId was provided, update their enrollment
-    if (classId !== undefined) {
+    if (!existingStudent) {
+      throw createHttpError(404, "Student not found");
+    }
+
+    // 3. Update the student using standard .update() so it returns the data, NOT a count
+    const updatedUser = await tx.user.update({
+      where: { id: studentId },
+      data: { name, email },
+      select: studentSafeSelect,
+    });
+
+    // 4. If a new classId was specifically provided, update their enrollment
+    if (classId) {
       const activeSession = await tx.academicSession.findFirst({
         where: { schoolId, isActive: true },
       });
@@ -198,20 +209,18 @@ export const updateStudent = async (studentId, schoolId, updateData) => {
         // Deactivate their current active enrollment for this session
         await tx.enrollment.updateMany({
           where: { studentId, sessionId: activeSession.id, status: "ACTIVE" },
-          data: { status: "TRANSFERRED" },
+          data: { status: "INACTIVE" }, // Safely set to INACTIVE
         });
 
-        // Enroll them in the new class if they selected one
-        if (classId) {
-          await tx.enrollment.create({
-            data: {
-              studentId,
-              classId,
-              sessionId: activeSession.id,
-              status: "ACTIVE",
-            },
-          });
-        }
+        // Enroll them in the newly selected class
+        await tx.enrollment.create({
+          data: {
+            studentId,
+            classId,
+            sessionId: activeSession.id,
+            status: "ACTIVE",
+          },
+        });
       }
     }
 
