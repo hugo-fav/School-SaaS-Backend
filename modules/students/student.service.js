@@ -26,8 +26,8 @@ export const createStudent = async (studentData, schoolId) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Use a transaction so we can create the user AND enroll them instantly
   return prisma.$transaction(async (tx) => {
+    // 1. Create the base user
     const student = await tx.user.create({
       data: {
         name,
@@ -39,26 +39,45 @@ export const createStudent = async (studentData, schoolId) => {
       select: studentSafeSelect,
     });
 
-    // If the admin assigned a class during creation, create the Enrollment record
+    let assignedClass = null;
+
+    // 2. If a class was selected on the frontend, handle enrollment
     if (classId) {
-      // Find the currently active academic session for this school
       const activeSession = await tx.academicSession.findFirst({
         where: { schoolId, isActive: true },
       });
 
-      if (activeSession) {
-        await tx.enrollment.create({
-          data: {
-            studentId: student.id,
-            classId: classId,
-            sessionId: activeSession.id,
-            status: "ACTIVE",
-          },
-        });
+      // 🔴 PREVENT SILENT FAILURE: Tell the user exactly what is wrong
+      if (!activeSession) {
+        throw createHttpError(
+          400,
+          "Cannot assign class: You must set an Active Academic Session in the Sessions module first.",
+        );
       }
+
+      // Create the enrollment
+      await tx.enrollment.create({
+        data: {
+          studentId: student.id,
+          classId: classId,
+          sessionId: activeSession.id,
+          status: "ACTIVE",
+        },
+      });
+
+      // Fetch the class details so we can send it back to the frontend immediately
+      assignedClass = await tx.class.findUnique({
+        where: { id: classId },
+        select: { id: true, name: true },
+      });
     }
 
-    return student;
+    // 3. Return the payload EXACTLY how the frontend table expects it
+    return {
+      ...student,
+      class: assignedClass,
+      enrollment: assignedClass?.name || "Unassigned",
+    };
   });
 };
 
@@ -69,19 +88,20 @@ export const getStudents = async (schoolId) => {
     select: {
       ...studentSafeSelect,
       enrollments: {
-        where: { status: "ACTIVE" }, // Only get their active enrollment
-        include: { 
-          class: { 
-            select: { id: true, name: true } 
-          } 
+        where: { status: "ACTIVE" },
+        include: {
+          class: {
+            select: { id: true, name: true },
+          },
         },
         orderBy: { createdAt: "desc" },
-        take: 1, // Grab the most recent active enrollment
+        take: 1,
       },
     },
+    orderBy: { createdAt: "desc" },
   });
 
-  // Map the response so the frontend receives it in the exact format it expects
+  // Map the response so the frontend table gets the nested class names cleanly
   return students.map((student) => ({
     ...student,
     class: student.enrollments[0]?.class || null,
