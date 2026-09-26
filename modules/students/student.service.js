@@ -167,10 +167,31 @@ export const getStudentsForTeacher = async (teacherId, schoolId) => {
 };
 
 export const getStudent = async (studentId, schoolId) => {
-  return prisma.user.findFirst({
+  const student = await prisma.user.findFirst({
     where: { id: studentId, role: "STUDENT", schoolId },
-    select: studentSafeSelect,
+    select: {
+      ...studentSafeSelect,
+      enrollments: {
+        where: { status: "ACTIVE" },
+        include: {
+          class: { select: { id: true, name: true } },
+          session: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
   });
+
+  if (!student) return null;
+
+  // Same shape the list endpoint returns, so the profile page and the
+  // directory table agree on what "class" / "enrollment" mean.
+  return {
+    ...student,
+    class: student.enrollments[0]?.class || null,
+    enrollment: student.enrollments[0]?.class?.name || "Unassigned",
+  };
 };
 
 // Teacher can only view a student if that student is enrolled in one of
@@ -193,10 +214,19 @@ export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
         sessionId,
       })),
     },
-    include: { student: { select: studentSafeSelect } },
+    include: {
+      student: { select: studentSafeSelect },
+      class: { select: { id: true, name: true } },
+    },
   });
 
-  return enrollment ? enrollment.student : null;
+  if (!enrollment) return null;
+
+  return {
+    ...enrollment.student,
+    class: enrollment.class,
+    enrollment: enrollment.class?.name || "Unassigned",
+  };
 };
 
 export const updateStudent = async (studentId, schoolId, updateData) => {
