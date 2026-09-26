@@ -169,7 +169,7 @@ export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
 };
 
 export const updateStudent = async (studentId, schoolId, updateData) => {
-  const { name, email } = updateData;
+  const { name, email, classId } = updateData;
 
   if (email) {
     const existingUser = await prisma.user.findFirst({
@@ -181,9 +181,41 @@ export const updateStudent = async (studentId, schoolId, updateData) => {
     }
   }
 
-  return prisma.user.updateMany({
-    where: { id: studentId, role: "STUDENT", schoolId },
-    data: { name, email },
+  return prisma.$transaction(async (tx) => {
+    // 1. Update basic info
+    const updatedUser = await tx.user.updateMany({
+      where: { id: studentId, role: "STUDENT", schoolId },
+      data: { name, email },
+    });
+
+    // 2. If a new classId was provided, update their enrollment
+    if (classId !== undefined) {
+      const activeSession = await tx.academicSession.findFirst({
+        where: { schoolId, isActive: true },
+      });
+
+      if (activeSession) {
+        // Deactivate their current active enrollment for this session
+        await tx.enrollment.updateMany({
+          where: { studentId, sessionId: activeSession.id, status: "ACTIVE" },
+          data: { status: "TRANSFERRED" },
+        });
+
+        // Enroll them in the new class if they selected one
+        if (classId) {
+          await tx.enrollment.create({
+            data: {
+              studentId,
+              classId,
+              sessionId: activeSession.id,
+              status: "ACTIVE",
+            },
+          });
+        }
+      }
+    }
+
+    return updatedUser;
   });
 };
 

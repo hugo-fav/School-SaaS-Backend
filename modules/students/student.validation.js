@@ -4,7 +4,7 @@ const createStudentSchema = Joi.object({
   name: Joi.string().trim().min(2).required(),
   email: Joi.string().trim().email().required(),
   password: Joi.string().min(8).required(),
-  classId: Joi.string().trim().optional(), // <--- Added this line!
+  classId: Joi.string().trim().optional(), 
 });
 
 const updateStudentSchema = Joi.object({
