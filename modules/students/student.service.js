@@ -260,19 +260,19 @@ export const updateStudent = async (studentId, schoolId, updateData) => {
 
           await verifyClassOwnership(tx, classId, schoolId);
 
-          // Deactivate their current active enrollment for this session
-          await tx.enrollment.updateMany({
+          // Enrollment has @@unique([studentId, sessionId]) — a student can
+          // only ever have ONE enrollment row for a given session, no matter
+          // its status. So we can't deactivate-then-insert (that collides
+          // with itself); we upsert the single row for this session instead.
+          await tx.enrollment.upsert({
             where: {
-              studentId,
-              sessionId: activeSession.id,
-              status: "ACTIVE",
+              studentId_sessionId: {
+                studentId,
+                sessionId: activeSession.id,
+              },
             },
-            data: { status: "INACTIVE" },
-          });
-
-          // Enroll them in the newly selected class
-          await tx.enrollment.create({
-            data: {
+            update: { classId, status: "ACTIVE", leftAt: null },
+            create: {
               studentId,
               classId,
               sessionId: activeSession.id,
@@ -280,16 +280,16 @@ export const updateStudent = async (studentId, schoolId, updateData) => {
             },
           });
         } else if (activeSession) {
-          // classId was explicitly cleared — unassign by deactivating any
-          // current active enrollment. If there's no active session there's
-          // nothing to deactivate, so this is a safe no-op in that case.
+          // classId was explicitly cleared — unassign by marking this
+          // session's enrollment row INACTIVE (there's at most one, per the
+          // unique constraint above). No-op if none exists yet.
           await tx.enrollment.updateMany({
             where: {
               studentId,
               sessionId: activeSession.id,
               status: "ACTIVE",
             },
-            data: { status: "INACTIVE" },
+            data: { status: "INACTIVE", leftAt: new Date() },
           });
         }
       }
