@@ -15,8 +15,35 @@ const studentSafeSelect = {
   updatedAt: true,
 };
 
+// Converts a raw Prisma unique-constraint violation (P2002) into the same
+// clean 409 we return from the pre-check. Needed because the pre-check
+// (findUnique before the transaction) can't prevent two concurrent requests
+// from both passing the check and then both hitting the DB constraint.
+const rethrowAsFriendlyError = (err) => {
+  if (err.code === "P2002") {
+    throw createHttpError(409, "An account with this email already exists");
+  }
+  throw err;
+};
+
+// A classId coming from the client is just a string — it could belong to
+// another school entirely (typo, tampering, stale data). Always confirm it
+// belongs to this school before using it in an enrollment.
+const verifyClassOwnership = async (tx, classId, schoolId) => {
+  const cls = await tx.class.findFirst({
+    where: { id: classId, schoolId },
+    select: { id: true, name: true },
+  });
+
+  if (!cls) {
+    throw createHttpError(404, "Selected class was not found in your school.");
+  }
+
+  return cls;
+};
+
 export const createStudent = async (studentData, schoolId) => {
-  const { name, email, password, classId } = studentData; // Extract classId
+  const { name, email, password, classId } = studentData;
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
 
@@ -26,59 +53,61 @@ export const createStudent = async (studentData, schoolId) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  return prisma.$transaction(async (tx) => {
-    // 1. Create the base user
-    const student = await tx.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: "STUDENT",
-        schoolId,
-      },
-      select: studentSafeSelect,
-    });
-
-    let assignedClass = null;
-
-    // 2. If a class was selected on the frontend, handle enrollment
-    if (classId) {
-      const activeSession = await tx.academicSession.findFirst({
-        where: { schoolId, isActive: true },
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Create the base user
+      const student = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role: "STUDENT",
+          schoolId,
+        },
+        select: studentSafeSelect,
       });
 
-      // 🔴 PREVENT SILENT FAILURE: Tell the user exactly what is wrong
-      if (!activeSession) {
-        throw createHttpError(
-          400,
-          "Cannot assign class: You must set an Active Academic Session in the Sessions module first.",
-        );
+      let assignedClass = null;
+
+      // 2. If a class was selected on the frontend, handle enrollment
+      if (classId) {
+        // Make sure the class actually belongs to this school before we
+        // enroll anyone into it.
+        assignedClass = await verifyClassOwnership(tx, classId, schoolId);
+
+        const activeSession = await tx.academicSession.findFirst({
+          where: { schoolId, isActive: true },
+        });
+
+        // 🔴 PREVENT SILENT FAILURE: Tell the user exactly what is wrong
+        if (!activeSession) {
+          throw createHttpError(
+            400,
+            "Cannot assign class: You must set an Active Academic Session in the Sessions module first.",
+          );
+        }
+
+        // Create the enrollment
+        await tx.enrollment.create({
+          data: {
+            studentId: student.id,
+            classId,
+            sessionId: activeSession.id,
+            status: "ACTIVE",
+          },
+        });
       }
 
-      // Create the enrollment
-      await tx.enrollment.create({
-        data: {
-          studentId: student.id,
-          classId: classId,
-          sessionId: activeSession.id,
-          status: "ACTIVE",
-        },
-      });
-
-      // Fetch the class details so we can send it back to the frontend immediately
-      assignedClass = await tx.class.findUnique({
-        where: { id: classId },
-        select: { id: true, name: true },
-      });
-    }
-
-    // 3. Return the payload EXACTLY how the frontend table expects it
-    return {
-      ...student,
-      class: assignedClass,
-      enrollment: assignedClass?.name || "Unassigned",
-    };
-  });
+      // 3. Return the payload EXACTLY how the frontend table expects it
+      return {
+        ...student,
+        class: assignedClass,
+        enrollment: assignedClass?.name || "Unassigned",
+      };
+    });
+  } catch (err) {
+    rethrowAsFriendlyError(err);
+  }
 };
 
 // Admin sees every student in the school, now including their active class.
@@ -109,7 +138,7 @@ export const getStudents = async (schoolId) => {
   }));
 };
 
-// Teacher sees only students enrolled in classes they're assigned to teach.
+// Teacher sees only active students enrolled in classes they're assigned to teach.
 export const getStudentsForTeacher = async (teacherId, schoolId) => {
   const teacherSubjects = await prisma.teacherSubject.findMany({
     where: { teacherId, session: { schoolId } },
@@ -121,6 +150,7 @@ export const getStudentsForTeacher = async (teacherId, schoolId) => {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       status: "ACTIVE",
+      student: { isActive: true },
       OR: teacherSubjects.map(({ classId, sessionId }) => ({
         classId,
         sessionId,
@@ -144,7 +174,7 @@ export const getStudent = async (studentId, schoolId) => {
 };
 
 // Teacher can only view a student if that student is enrolled in one of
-// the teacher's own class/subject assignments.
+// the teacher's own class/subject assignments and is still active.
 export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
   const teacherSubjects = await prisma.teacherSubject.findMany({
     where: { teacherId, session: { schoolId } },
@@ -157,6 +187,7 @@ export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
     where: {
       studentId,
       status: "ACTIVE",
+      student: { isActive: true },
       OR: teacherSubjects.map(({ classId, sessionId }) => ({
         classId,
         sessionId,
@@ -171,6 +202,14 @@ export const getStudentForTeacher = async (studentId, teacherId, schoolId) => {
 export const updateStudent = async (studentId, schoolId, updateData) => {
   const { name, email, classId } = updateData;
 
+  // Was classId included in the request at all? This is different from
+  // "classId is falsy" — an explicit empty string means "unassign", while
+  // an omitted key means "leave the enrollment untouched".
+  const classIdProvided = Object.prototype.hasOwnProperty.call(
+    updateData,
+    "classId",
+  );
+
   // 1. Verify email uniqueness if email is being updated
   if (email) {
     const existingUser = await prisma.user.findFirst({
@@ -182,50 +221,84 @@ export const updateStudent = async (studentId, schoolId, updateData) => {
     }
   }
 
-  return prisma.$transaction(async (tx) => {
-    // 2. Verify student exists in this school first
-    const existingStudent = await tx.user.findFirst({
-      where: { id: studentId, role: "STUDENT", schoolId },
-    });
-
-    if (!existingStudent) {
-      throw createHttpError(404, "Student not found");
-    }
-
-    // 3. Update the student using standard .update() so it returns the data, NOT a count
-    const updatedUser = await tx.user.update({
-      where: { id: studentId },
-      data: { name, email },
-      select: studentSafeSelect,
-    });
-
-    // 4. If a new classId was specifically provided, update their enrollment
-    if (classId) {
-      const activeSession = await tx.academicSession.findFirst({
-        where: { schoolId, isActive: true },
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // 2. Verify student exists in this school first
+      const existingStudent = await tx.user.findFirst({
+        where: { id: studentId, role: "STUDENT", schoolId },
       });
 
-      if (activeSession) {
-        // Deactivate their current active enrollment for this session
-        await tx.enrollment.updateMany({
-          where: { studentId, sessionId: activeSession.id, status: "ACTIVE" },
-          data: { status: "INACTIVE" }, // Safely set to INACTIVE
-        });
-
-        // Enroll them in the newly selected class
-        await tx.enrollment.create({
-          data: {
-            studentId,
-            classId,
-            sessionId: activeSession.id,
-            status: "ACTIVE",
-          },
-        });
+      if (!existingStudent) {
+        throw createHttpError(404, "Student not found");
       }
-    }
 
-    return updatedUser;
-  });
+      // 3. Update the student using standard .update() so it returns the data, NOT a count
+      const updatedUser = await tx.user.update({
+        where: { id: studentId },
+        data: {
+          ...(name !== undefined ? { name } : {}),
+          ...(email !== undefined ? { email } : {}),
+        },
+        select: studentSafeSelect,
+      });
+
+      // 4. Only touch enrollment if classId was actually part of the request
+      if (classIdProvided) {
+        const activeSession = await tx.academicSession.findFirst({
+          where: { schoolId, isActive: true },
+        });
+
+        if (classId) {
+          // Reassigning to a specific class requires an active session and
+          // requires that the class belongs to this school.
+          if (!activeSession) {
+            throw createHttpError(
+              400,
+              "Cannot change class: You must set an Active Academic Session in the Sessions module first.",
+            );
+          }
+
+          await verifyClassOwnership(tx, classId, schoolId);
+
+          // Deactivate their current active enrollment for this session
+          await tx.enrollment.updateMany({
+            where: {
+              studentId,
+              sessionId: activeSession.id,
+              status: "ACTIVE",
+            },
+            data: { status: "INACTIVE" },
+          });
+
+          // Enroll them in the newly selected class
+          await tx.enrollment.create({
+            data: {
+              studentId,
+              classId,
+              sessionId: activeSession.id,
+              status: "ACTIVE",
+            },
+          });
+        } else if (activeSession) {
+          // classId was explicitly cleared — unassign by deactivating any
+          // current active enrollment. If there's no active session there's
+          // nothing to deactivate, so this is a safe no-op in that case.
+          await tx.enrollment.updateMany({
+            where: {
+              studentId,
+              sessionId: activeSession.id,
+              status: "ACTIVE",
+            },
+            data: { status: "INACTIVE" },
+          });
+        }
+      }
+
+      return updatedUser;
+    });
+  } catch (err) {
+    rethrowAsFriendlyError(err);
+  }
 };
 
 // Soft delete — deactivates the account rather than removing it, since a
@@ -243,6 +316,23 @@ export const deactivateStudent = async (studentId, schoolId) => {
   return prisma.user.update({
     where: { id: studentId },
     data: { isActive: false },
+    select: studentSafeSelect,
+  });
+};
+
+// Reverses deactivateStudent — brings a soft-deleted account back to active.
+export const reactivateStudent = async (studentId, schoolId) => {
+  const student = await prisma.user.findFirst({
+    where: { id: studentId, role: "STUDENT", schoolId },
+  });
+
+  if (!student) {
+    throw createHttpError(404, "Student not found or not in your school");
+  }
+
+  return prisma.user.update({
+    where: { id: studentId },
+    data: { isActive: true },
     select: studentSafeSelect,
   });
 };

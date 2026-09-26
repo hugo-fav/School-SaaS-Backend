@@ -4,13 +4,17 @@ const createStudentSchema = Joi.object({
   name: Joi.string().trim().min(2).required(),
   email: Joi.string().trim().email().required(),
   password: Joi.string().min(8).required(),
-  classId: Joi.string().trim().optional(), 
+  classId: Joi.string().trim().allow("").optional(),
 });
 
 const updateStudentSchema = Joi.object({
   name: Joi.string().trim().min(2),
   email: Joi.string().trim().email(),
-  classId: Joi.string().trim().optional(), // <--- Added here just in case!
+  // classId can be:
+  //   - omitted            -> leave the student's enrollment untouched
+  //   - a valid class id   -> reassign to that class
+  //   - "" (empty string)  -> explicitly unassign the student's class
+  classId: Joi.string().trim().allow("", null).optional(),
 }).min(1);
 
 export function validateCreateStudent(req, res, next) {

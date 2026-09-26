@@ -76,6 +76,17 @@ export const deactivateStudent = asyncHandler(async (req, res) => {
   });
 });
 
+export const reactivateStudent = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const student = await studentService.reactivateStudent(id, req.user.schoolId);
+
+  res.status(200).json({
+    message: "Student reactivated successfully",
+    data: student,
+  });
+});
+
 // getMyProfile, getMyClasses, getMyResults, getMyAttendance — unchanged
 export const getMyProfile = asyncHandler(async (req, res) => {
   const student = await studentService.getMyProfile(req.user);

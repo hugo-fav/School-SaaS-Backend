@@ -3,6 +3,7 @@ import express from "express";
 import {
   createStudent,
   deactivateStudent,
+  reactivateStudent,
   getMyAttendance,
   getMyClasses,
   getMyProfile,
@@ -46,5 +47,6 @@ router.put(
   updateStudent,
 );
 router.delete("/:id", protect, authorize("ADMIN"), deactivateStudent);
+router.patch("/:id/activate", protect, authorize("ADMIN"), reactivateStudent);
 
 export default router;
