@@ -53,19 +53,16 @@ export const getStudent = asyncHandler(async (req, res) => {
 export const updateStudent = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const result = await studentService.updateStudent(
+  const updatedStudent = await studentService.updateStudent(
     id,
     req.user.schoolId,
     req.body,
   );
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Student not found or not in your school" });
-  }
-
-  res.status(200).json({ message: "Student updated successfully" });
+  res.status(200).json({
+    message: "Student updated successfully",
+    data: updatedStudent,
+  });
 });
 
 export const deactivateStudent = asyncHandler(async (req, res) => {
@@ -89,13 +86,11 @@ export const getMyProfile = asyncHandler(async (req, res) => {
 
 export const getMyClasses = asyncHandler(async (req, res) => {
   const classes = await studentService.getMyClasses(req.user);
-  res
-    .status(200)
-    .json({
-      message: "Student classes retrieved successfully",
-      results: classes.length,
-      data: classes,
-    });
+  res.status(200).json({
+    message: "Student classes retrieved successfully",
+    results: classes.length,
+    data: classes,
+  });
 });
 
 export const getMyResults = asyncHandler(async (req, res) => {
@@ -117,10 +112,8 @@ export const getMyAttendance = asyncHandler(async (req, res) => {
     termId,
     req.user,
   );
-  res
-    .status(200)
-    .json({
-      message: "Student attendance retrieved successfully",
-      data: attendance,
-    });
+  res.status(200).json({
+    message: "Student attendance retrieved successfully",
+    data: attendance,
+  });
 });
