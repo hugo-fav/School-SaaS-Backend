@@ -281,15 +281,18 @@ export const updateStudent = async (studentId, schoolId, updateData) => {
           });
         } else if (activeSession) {
           // classId was explicitly cleared — unassign by marking this
-          // session's enrollment row INACTIVE (there's at most one, per the
-          // unique constraint above). No-op if none exists yet.
+          // session's enrollment row WITHDRAWN (there's at most one, per
+          // the unique constraint above). EnrollmentStatus has no generic
+          // "inactive" member — ACTIVE / GRADUATED / WITHDRAWN are the only
+          // options, so WITHDRAWN is the correct one for "admin removed
+          // them from this class". No-op if no enrollment exists yet.
           await tx.enrollment.updateMany({
             where: {
               studentId,
               sessionId: activeSession.id,
               status: "ACTIVE",
             },
-            data: { status: "INACTIVE", leftAt: new Date() },
+            data: { status: "WITHDRAWN", leftAt: new Date() },
           });
         }
       }
