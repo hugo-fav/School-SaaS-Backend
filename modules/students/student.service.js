@@ -70,10 +70,10 @@ export const getStudents = async (schoolId) => {
       ...studentSafeSelect,
       enrollments: {
         where: { status: "ACTIVE" }, // Only get their active enrollment
-        include: {
-          class: {
-            select: { id: true, name: true },
-          },
+        include: { 
+          class: { 
+            select: { id: true, name: true } 
+          } 
         },
         orderBy: { createdAt: "desc" },
         take: 1, // Grab the most recent active enrollment
