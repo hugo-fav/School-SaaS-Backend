@@ -35,7 +35,7 @@ export const createEnrollment = async (data, user) => {
     if (!classRoom) {
       throw createHttpError(
         404,
-        "Class room not found or does not blong to your school",
+        "Class room not found or does not belong to your school",
       );
     }
 
@@ -118,15 +118,14 @@ export const getEnrollments = async (schoolId) => {
     },
   });
 
-  if (!enrollments) {
-    throw createHttpError(404, "Enrollments not found");
-  }
-
   return enrollments;
 };
 
 export const getEnrollment = async (id, schoolId) => {
-  const enrollment = prisma.enrollment.findFirst({
+  // Was missing `await` — `enrollment` was a Promise (always truthy), so
+  // ensureExists() never fired and an unresolved Promise was returned to
+  // the controller instead of the actual row.
+  const enrollment = await prisma.enrollment.findFirst({
     where: {
       id,
       session: {
@@ -158,6 +157,14 @@ export const updateEnrollment = async (id, data, user) => {
     const { schoolId } = user;
     const { classId } = data;
 
+    // Check this BEFORE querying for the class — passing `id: undefined`
+    // to Prisma doesn't fail, it just omits that filter, so the old code
+    // below would silently match an unrelated class in the school instead
+    // of correctly failing on a missing classId.
+    if (!classId) {
+      throw createHttpError(400, "Class is required");
+    }
+
     // VALIDATIONS
     const enrollment = await tx.enrollment.findFirst({
       where: {
@@ -177,7 +184,7 @@ export const updateEnrollment = async (id, data, user) => {
     if (enrollment.scores.length > 0 || enrollment.attendance.length > 0) {
       throw createHttpError(
         400,
-        "Enrollment cannot be updated because scores or attendance have aleady been recorded",
+        "Enrollment cannot be updated because scores or attendance have already been recorded",
       );
     }
 
@@ -190,12 +197,8 @@ export const updateEnrollment = async (id, data, user) => {
 
     ensureExists(classRoom, "Class");
 
-    if (!classId) {
-      throw createHttpError(400, "Class is required");
-    }
-
     if (classId === enrollment.classId) {
-      throw createHttpError(400, "Sudent is already enrolled in this class");
+      throw createHttpError(400, "Student is already enrolled in this class");
     }
 
     return tx.enrollment.update({
@@ -268,7 +271,7 @@ export const deleteEnrollment = async (id, user) => {
     });
 
     return {
-      message: "Enrollment deleted sucessfully",
+      message: "Enrollment deleted successfully",
     };
   });
 };
