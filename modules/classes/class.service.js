@@ -7,20 +7,63 @@ export const createClass = async (classData, schoolId) => {
   return prisma.class.create({ data: { name, schoolId } });
 };
 
+// 🔴 FIX 1: Tell Prisma to count active enrollments and subjects for the list
 export const getClasses = async (schoolId) => {
-  return prisma.class.findMany({ where: { schoolId } });
+  const classes = await prisma.class.findMany({
+    where: { schoolId },
+    include: {
+      _count: {
+        select: {
+          // Count only active students (optional: remove the where block to count all historical)
+          enrollments: { where: { status: "ACTIVE" } },
+          teacherSubjects: true,
+        },
+      },
+    },
+  });
+
+  // Map it to exactly match the variable names your frontend is expecting!
+  return classes.map((cls) => ({
+    ...cls,
+    enrollmentsCount: cls._count.enrollments,
+    assignmentsCount: cls._count.teacherSubjects,
+  }));
 };
 
 export const getClass = async (classId, schoolId) => {
   return prisma.class.findFirst({ where: { id: classId, schoolId } });
 };
 
+// 🔴 FIX 2: Change updateMany to update so it returns the actual updated object!
 export const updateClass = async (classId, schoolId, updateData) => {
   const { name } = updateData;
-  return prisma.class.updateMany({
+
+  const existingClass = await prisma.class.findFirst({
     where: { id: classId, schoolId },
-    data: { name },
   });
+
+  if (!existingClass) {
+    throw createHttpError(404, "Class not found");
+  }
+
+  const updatedClass = await prisma.class.update({
+    where: { id: classId },
+    data: { name },
+    include: {
+      _count: {
+        select: {
+          enrollments: { where: { status: "ACTIVE" } },
+          teacherSubjects: true,
+        },
+      },
+    },
+  });
+
+  return {
+    ...updatedClass,
+    enrollmentsCount: updatedClass._count.enrollments,
+    assignmentsCount: updatedClass._count.teacherSubjects,
+  };
 };
 
 // Blocks deletion if the class still has enrollments or teacher/subject
