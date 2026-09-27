@@ -62,10 +62,27 @@ export const getTeachers = async (schoolId) => {
 };
 
 export const getTeacher = async (teacherId, schoolId) => {
-  return prisma.user.findFirst({
+  const teacher = await prisma.user.findFirst({
     where: { id: teacherId, role: "TEACHER", schoolId },
-    select: teacherSafeSelect,
+    select: {
+      ...teacherSafeSelect,
+      // Pull in the detailed class and subject assignments!
+      teacherSubjects: {
+        include: {
+          class: { select: { id: true, name: true } },
+          subject: { select: { id: true, name: true, code: true } },
+          session: { select: { id: true, name: true, isActive: true } },
+        },
+      },
+    },
   });
+
+  if (teacher) {
+    // Add the assignments count so the frontend header displays the right number
+    teacher.assignments = teacher.teacherSubjects?.length || 0;
+  }
+
+  return teacher;
 };
 
 export const updateTeacher = async (teacherId, schoolId, updateData) => {
