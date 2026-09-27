@@ -37,10 +37,20 @@ export const createTeacher = async (teacherData, schoolId) => {
 };
 
 export const getTeachers = async (schoolId) => {
-  return prisma.user.findMany({
+  const teachers = await prisma.user.findMany({
     where: { role: "TEACHER", schoolId },
     select: teacherSafeSelect,
+    _count: {
+      select: {
+        teacherSubjects: true,
+      },
+    },
   });
+
+  return teachers.map((teacher) => ({
+    ...teacher,
+    assignments: teacher._count.teacherSubjects,
+  }));
 };
 
 export const getTeacher = async (teacherId, schoolId) => {
