@@ -37,23 +37,28 @@ export const createTeacher = async (teacherData, schoolId) => {
 };
 
 export const getTeachers = async (schoolId) => {
+  // 1. Fetch the teachers safely
   const teachers = await prisma.user.findMany({
     where: { role: "TEACHER", schoolId },
-    select: {
-      ...teacherSafeSelect,
-      _count: {
-        select: {
-          teacherSubjects: true, // Counts how many class/subject assignments this teacher has
-        },
-      },
-    },
+    select: teacherSafeSelect,
   });
 
-  // Map the Prisma _count result into the 'assignments' property your frontend expects
-  return teachers.map((teacher) => ({
-    ...teacher,
-    assignments: teacher._count.teacherSubjects,
-  }));
+  // 2. Count the assignments for each teacher safely using Promise.all
+  // This completely avoids Prisma relation-naming crashes!
+  const teachersWithCounts = await Promise.all(
+    teachers.map(async (teacher) => {
+      const assignmentCount = await prisma.teacherSubject.count({
+        where: { teacherId: teacher.id },
+      });
+
+      return {
+        ...teacher,
+        assignments: assignmentCount,
+      };
+    }),
+  );
+
+  return teachersWithCounts;
 };
 
 export const getTeacher = async (teacherId, schoolId) => {
