@@ -62,27 +62,30 @@ export const getTeachers = async (schoolId) => {
 };
 
 export const getTeacher = async (teacherId, schoolId) => {
+  // 1. Fetch the teacher safely (No nested relations to prevent crashes)
   const teacher = await prisma.user.findFirst({
     where: { id: teacherId, role: "TEACHER", schoolId },
-    select: {
-      ...teacherSafeSelect,
-      // Pull in the detailed class and subject assignments!
-      teacherSubjects: {
-        include: {
-          class: { select: { id: true, name: true } },
-          subject: { select: { id: true, name: true, code: true } },
-          session: { select: { id: true, name: true, isActive: true } },
-        },
-      },
+    select: teacherSafeSelect,
+  });
+
+  if (!teacher) return null;
+
+  // 2. Fetch the assignments safely in a completely separate query
+  const assignments = await prisma.teacherSubject.findMany({
+    where: { teacherId: teacher.id },
+    include: {
+      class: { select: { id: true, name: true } },
+      subject: { select: { id: true, name: true, code: true } },
+      session: { select: { id: true, name: true, isActive: true } },
     },
   });
 
-  if (teacher) {
-    // Add the assignments count so the frontend header displays the right number
-    teacher.assignments = teacher.teacherSubjects?.length || 0;
-  }
-
-  return teacher;
+  // 3. Combine them perfectly for the frontend
+  return {
+    ...teacher,
+    teacherSubjects: assignments,
+    assignments: assignments.length,
+  };
 };
 
 export const updateTeacher = async (teacherId, schoolId, updateData) => {
