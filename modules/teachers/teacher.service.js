@@ -39,14 +39,17 @@ export const createTeacher = async (teacherData, schoolId) => {
 export const getTeachers = async (schoolId) => {
   const teachers = await prisma.user.findMany({
     where: { role: "TEACHER", schoolId },
-    select: teacherSafeSelect,
-    _count: {
-      select: {
-        teacherSubjects: true,
+    select: {
+      ...teacherSafeSelect,
+      _count: {
+        select: {
+          teacherSubjects: true, // Counts how many class/subject assignments this teacher has
+        },
       },
     },
   });
 
+  // Map the Prisma _count result into the 'assignments' property your frontend expects
   return teachers.map((teacher) => ({
     ...teacher,
     assignments: teacher._count.teacherSubjects,
