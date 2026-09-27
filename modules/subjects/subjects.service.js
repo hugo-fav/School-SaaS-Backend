@@ -30,36 +30,51 @@ export const createSubject = async (data, schoolId) => {
   });
 };
 
+// Update getSubjects to include assignments count for the table
 export const getSubjects = async (schoolId) => {
-  return prisma.subject.findMany({
+  const subjects = await prisma.subject.findMany({
     where: { schoolId },
+    include: {
+      _count: {
+        select: { teacherSubjects: true },
+      },
+    },
     orderBy: { name: "asc" },
   });
+
+  return subjects.map((sub) => ({
+    ...sub,
+    assignmentsCount: sub._count.teacherSubjects,
+  }));
 };
 
+// Update getSubject (the ID page) to pull proper session details and assignments
 export const getSubject = async (id, schoolId) => {
-  return prisma.subject.findFirst({
+  const subject = await prisma.subject.findFirst({
     where: { id, schoolId },
     include: {
       teacherSubjects: {
         include: {
           teacher: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+            select: { id: true, name: true, email: true },
           },
           class: {
-            select: {
-              id: true,
-              name: true,
-            },
+            select: { id: true, name: true },
+          },
+          session: {
+            select: { id: true, name: true, isActive: true },
           },
         },
       },
     },
   });
+
+  if (!subject) return null;
+
+  return {
+    ...subject,
+    assignmentsCount: subject.teacherSubjects.length,
+  };
 };
 
 export const updateSubject = async (id, schoolId, data) => {
