@@ -3,13 +3,12 @@ import prisma from "../../config/prisma.js";
 // Create Academic Session
 export const createSession = async (data, schoolId) => {
   return prisma.$transaction(async (tx) => {
+    // 1. Force actual Date objects so Prisma doesn't crash
     const startDate = new Date(data.startDate);
     const endDate = new Date(data.endDate);
+
     const existingSession = await tx.academicSession.findFirst({
-      where: {
-        schoolId,
-        name: data.name,
-      },
+      where: { schoolId, name: data.name },
     });
 
     if (existingSession) {
@@ -21,12 +20,8 @@ export const createSession = async (data, schoolId) => {
     const overlappingSession = await tx.academicSession.findFirst({
       where: {
         schoolId,
-        startDate: {
-          lte: endDate,
-        },
-        endDate: {
-          gte: startDate,
-        },
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
       },
     });
 
@@ -40,16 +35,12 @@ export const createSession = async (data, schoolId) => {
 
     if (data.isActive) {
       await tx.academicSession.updateMany({
-        where: {
-          schoolId,
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-        },
+        where: { schoolId, isActive: true },
+        data: { isActive: false },
       });
     }
 
+    // Pass the newly parsed Date objects, NOT the raw strings from 'data'
     return tx.academicSession.create({
       data: {
         ...data,
@@ -74,14 +65,11 @@ export const getSession = async (id, schoolId) => {
   });
 };
 
+// Update Academic Session
 export const updateSession = async (id, schoolId, data) => {
   return prisma.$transaction(async (tx) => {
-    // Check if the session exists
     const currentSession = await tx.academicSession.findFirst({
-      where: {
-        id,
-        schoolId,
-      },
+      where: { id, schoolId },
     });
 
     if (!currentSession) {
@@ -90,42 +78,32 @@ export const updateSession = async (id, schoolId, data) => {
       throw error;
     }
 
-    // Prevent duplicate session names
-    if (data.name) {
+    if (data.name && data.name !== currentSession.name) {
       const existingSession = await tx.academicSession.findFirst({
-        where: {
-          schoolId,
-          name: data.name,
-          NOT: {
-            id,
-          },
-        },
+        where: { schoolId, name: data.name, NOT: { id } },
       });
 
       if (existingSession) {
-        const error = new Error("Academic session already exists.");
+        const error = new Error("Academic session name already exists.");
         error.statusCode = 400;
         throw error;
       }
     }
 
-    // Determine which dates to validate
-    const startDate = new Date(data.startDate ?? currentSession.startDate);
-    const endDate = new Date(data.endDate ?? currentSession.endDate);
+    // Safely parse dates, falling back to what is already in the database
+    const startDate = data.startDate
+      ? new Date(data.startDate)
+      : currentSession.startDate;
+    const endDate = data.endDate
+      ? new Date(data.endDate)
+      : currentSession.endDate;
 
-    // Prevent overlapping sessions
     const overlappingSession = await tx.academicSession.findFirst({
       where: {
         schoolId,
-        NOT: {
-          id,
-        },
-        startDate: {
-          lte: endDate,
-        },
-        endDate: {
-          gte: startDate,
-        },
+        NOT: { id },
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
       },
     });
 
@@ -137,48 +115,35 @@ export const updateSession = async (id, schoolId, data) => {
       throw error;
     }
 
-    // Prevent deactivating the only active session
     if (currentSession.isActive && data.isActive === false) {
       const error = new Error(
-        "You cannot deactivate the active session. Activate another session first.",
+        "You cannot deactivate the active session directly. Activate another session instead.",
       );
       error.statusCode = 400;
       throw error;
     }
 
-    // If this session is being activated,
-    // deactivate every other active session
-    if (data.isActive === true) {
+    if (data.isActive === true && !currentSession.isActive) {
       await tx.academicSession.updateMany({
-        where: {
-          schoolId,
-          isActive: true,
-          NOT: {
-            id,
-          },
-        },
-        data: {
-          isActive: false,
-        },
+        where: { schoolId, isActive: true, NOT: { id } },
+        data: { isActive: false },
       });
     }
 
-    // Update the session
     return tx.academicSession.update({
-      where: {
-        id,
+      where: { id },
+      data: {
+        ...data,
+        startDate,
+        endDate,
       },
-      data,
     });
   });
 };
 
 export const deleteSession = async (id, schoolId) => {
   const session = await prisma.academicSession.findFirst({
-    where: {
-      id,
-      schoolId,
-    },
+    where: { id, schoolId },
   });
 
   if (!session) {
@@ -194,8 +159,6 @@ export const deleteSession = async (id, schoolId) => {
   }
 
   return prisma.academicSession.delete({
-    where: {
-      id,
-    },
+    where: { id },
   });
 };
