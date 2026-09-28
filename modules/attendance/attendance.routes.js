@@ -9,7 +9,7 @@ const router = express.Router();
 router.post("/", protect, authorize("ADMIN", "TEACHER"), createBulkAttendance);
 router.get("/", protect, authorize("ADMIN", "TEACHER"), getAttendance);
 router.get("/:id", protect, authorize("ADMIN", "TEACHER"), getAttendanceById);
-router.put("/:id", protect, authorize("ADMIN"), updateAttendance);
-router.delete("/:id", protect, authorize("ADMIN"), deleteAttendance);
+router.put("/:id", protect, authorize("ADMIN", "TEACHER"), updateAttendance);
+router.delete("/:id", protect, authorize("ADMIN", "TEACHER"), deleteAttendance);
 
 export default router;
