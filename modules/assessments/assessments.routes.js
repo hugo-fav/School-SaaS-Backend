@@ -8,17 +8,43 @@ import {
   publishAssessment,
   unpublishAssessment,
 } from "./assessments.controller.js";
+import {
+  validateCreateAssessment,
+  validateUpdateAssessment,
+} from "./assessments.validation.js";
 import { protect } from "../../middlewares/auth.middleware.js";
 import { authorize } from "../../middlewares/authorization.middleware.js";
 
 const router = express.Router();
 
-router.post("/", protect, authorize("ADMIN", "TEACHER"), createAssessment);
+router.post(
+  "/",
+  protect,
+  authorize("ADMIN", "TEACHER"),
+  validateCreateAssessment,
+  createAssessment,
+);
 router.get("/", protect, authorize("ADMIN", "TEACHER"), getAssessments);
 router.get("/:id", protect, authorize("ADMIN", "TEACHER"), getAssessment);
-router.put("/:id", protect, authorize("ADMIN", "TEACHER"), updateAssessment);
+router.put(
+  "/:id",
+  protect,
+  authorize("ADMIN", "TEACHER"),
+  validateUpdateAssessment,
+  updateAssessment,
+);
 router.delete("/:id", protect, authorize("ADMIN", "TEACHER"), deleteAssessment);
-router.patch("/:id/publish", protect, authorize("ADMIN", "TEACHER"), publishAssessment)
-router.patch("/:id/unpublish", protect, authorize("ADMIN", "TEACHER"), unpublishAssessment)
+router.patch(
+  "/:id/publish",
+  protect,
+  authorize("ADMIN", "TEACHER"),
+  publishAssessment,
+);
+router.patch(
+  "/:id/unpublish",
+  protect,
+  authorize("ADMIN", "TEACHER"),
+  unpublishAssessment,
+);
 
 export default router;

@@ -39,19 +39,22 @@ export const getAssessment = asyncHandler(async (req, res) => {
 
 export const updateAssessment = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Was calling updateAssessment(id, req.user.schoolId, req.body) — wrong
+  // argument order against the service's (id, data, user) signature. That
+  // put req.body in the "user" slot, meaning `user.schoolId` was always
+  // undefined inside the service, which Prisma treats as "no school
+  // filter" — any assessment in any school could be matched and updated.
   const result = await assessmentService.updateAssessment(
     id,
-    req.user.schoolId,
     req.body,
+    req.user,
   );
 
-  if (result.count === 0) {
-    return res
-      .status(404)
-      .json({ message: "Assessment not found or not in your school" });
-  }
-
-  res.status(200).json({ message: "Assessment updated successfully" });
+  res.status(200).json({
+    message: "Assessment updated successfully",
+    data: result,
+  });
 });
 
 export const deleteAssessment = asyncHandler(async (req, res) => {

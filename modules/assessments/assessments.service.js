@@ -179,7 +179,12 @@ export const createAssessment = async (data, user) => {
 };
 
 export const getAssessments = async (schoolId) => {
-  return prisma.assessment.findMany({
+  // Added _count.scores so the list can tell the frontend whether an
+  // assessment has recorded scores (for the "locked" badge / disabling
+  // delete-and-edit) without a separate request per row. getAssessment
+  // (singular) already fetched the full scores array; this list endpoint
+  // previously had no way to know this at all.
+  const assessments = await prisma.assessment.findMany({
     where: {
       teacherSubject: {
         session: {
@@ -203,11 +208,17 @@ export const getAssessments = async (schoolId) => {
         },
       },
       term: true,
+      _count: { select: { scores: true } },
     },
     orderBy: {
       createdAt: "desc",
     },
   });
+
+  return assessments.map(({ _count, ...assessment }) => ({
+    ...assessment,
+    hasScores: _count.scores > 0,
+  }));
 };
 
 export const getAssessment = async (id, schoolId) => {
@@ -491,6 +502,17 @@ export const deleteAssessment = async (id, user) => {
     // Cannot delete published assessment
     if (assessment.isPublished) {
       throw createHttpError(400, "Published assessments cannot be deleted");
+    }
+
+    // Was fetching `scores` above but never actually checking it -- an
+    // unpublished assessment with recorded scores could be deleted
+    // outright, orphaning those scores. Every other mutation
+    // (update/publish/unpublish) already enforces this.
+    if (assessment.scores.length > 0) {
+      throw createHttpError(
+        400,
+        "Cannot delete assessment because scores have already been recorded.",
+      );
     }
 
     await tx.assessment.delete({
