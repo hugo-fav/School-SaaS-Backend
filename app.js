@@ -60,10 +60,10 @@ app.use("/api/v1/promotion-history", promotionHistoryRoutes);
 app.use("/api/v1/results", resultRoutes);
 app.use("/api/v1/report-cards", reportCardRoutes);
 app.use("/api/v1/fees", feeRoutes);
+app.use("/api/v1/settings", settingsRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/payments/webhook", paymentWebhookRoutes);
-app.use("/api/v1/settings", settingsRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({
