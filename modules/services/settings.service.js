@@ -1,7 +1,7 @@
-import prisma from "../config/prisma.js";
-import createHttpError from "../utils/errors/createHttpError.js";
-import { ensureExists } from "../utils/validations/ensureExists.js";
-import { encrypt } from "../utils/encryption.js";
+import prisma from "../../config/prisma.js";
+import createHttpError from "../../utils/errors/createHttpError.js";
+import { ensureExists } from "../../utils/validations/ensureExists.js";
+import { encrypt } from "../../utils/encryption.js";
 
 export const getSchoolSettings = async (schoolId) => {
   const school = await prisma.school.findUnique({
