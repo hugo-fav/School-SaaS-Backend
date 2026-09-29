@@ -20,6 +20,7 @@ import feeRoutes from "./modules/fee/fee.route.js";
 import invoiceRoutes from "./modules/invoices/invoice.route.js";
 import paymentRoutes from "./modules/payments/payment.routes.js";
 import paymentWebhookRoutes from "./modules/payments/payment.webhook.route.js";
+import settingsRoutes from "./modules/services/settings.routes.js";
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use("/api/v1/fees", feeRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/payments/webhook", paymentWebhookRoutes);
+app.use("/api/v1/settings", settingsRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({
