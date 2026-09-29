@@ -1,5 +1,5 @@
 import express from "express";
-import * as settingsController from "../controllers/settings.controller.js";
+import * as settingsController from "./settings.controller.js";
 import { authenticate } from "../middlewares/authenticate.js";
 import { authorizeRoles } from "../middlewares/authorizeRoles.js"; // Adjust path to your auth middlewares
 
