@@ -6,10 +6,13 @@ const createInvoiceSchema = Joi.object({
   enrollmentId: Joi.string().uuid().required(),
 });
 
-// Generate invoices for an entire class
+// Generate invoices for an entire class (or ALL classes)
 const generateClassInvoicesSchema = Joi.object({
   feeId: Joi.string().uuid().required(),
-  classId: Joi.string().uuid().required(),
+  // UPDATE: Allows either a valid UUID or the exact string "ALL"
+  classId: Joi.alternatives()
+    .try(Joi.string().uuid(), Joi.string().valid("ALL"))
+    .required(),
 });
 
 // Filter invoices

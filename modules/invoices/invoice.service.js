@@ -120,7 +120,7 @@ export const createInvoice = async ({ feeId, enrollmentId, schoolId }) => {
 };
 
 // =====================================================
-// GENERATE INVOICES FOR AN ENTIRE CLASS
+// GENERATE INVOICES FOR A CLASS (OR ENTIRE SCHOOL)
 // =====================================================
 
 export const generateClassInvoices = async ({ feeId, classId, schoolId }) => {
@@ -136,31 +136,48 @@ export const generateClassInvoices = async ({ feeId, classId, schoolId }) => {
     throw new Error("Fee not found");
   }
 
-  // 2. Make sure class belongs to school
-  const schoolClass = await prisma.class.findFirst({
-    where: {
-      id: classId,
-      schoolId,
-    },
-  });
+  // 2. Build the class filter dynamically
+  let classFilter = {};
 
-  if (!schoolClass) {
-    throw new Error("Class not found");
+  if (classId === "ALL") {
+    // If generating for the whole school, ensure the fee isn't locked to just one class
+    if (fee.classId) {
+      throw new Error(
+        "This fee is locked to a specific class. You cannot generate it for the entire school.",
+      );
+    }
+    // classFilter remains empty, meaning "fetch everyone"
+  } else {
+    // If generating for a specific class, verify it exists
+    const schoolClass = await prisma.class.findFirst({
+      where: {
+        id: classId,
+        schoolId,
+      },
+    });
+
+    if (!schoolClass) {
+      throw new Error("Class not found");
+    }
+
+    // Make sure fee applies to this specific class
+    if (fee.classId && fee.classId !== classId) {
+      throw new Error("This fee does not apply to the selected class");
+    }
+
+    classFilter = { classId };
   }
 
-  // 3. Make sure fee applies to this class
-  if (fee.classId && fee.classId !== classId) {
-    throw new Error("This fee does not apply to the selected class");
-  }
-
-  // 4. Get all enrollments for this class
+  // 3. Get all enrollments for this class (or ALL classes)
   // in the fee's academic session
   const enrollments = await prisma.enrollment.findMany({
     where: {
-      classId,
+      ...classFilter, // Applies the { classId } if it's not "ALL"
       sessionId: fee.sessionId,
+      class: {
+        schoolId, // Security check: Ensure they belong to this school
+      },
     },
-
     include: {
       student: {
         select: {
@@ -180,11 +197,11 @@ export const generateClassInvoices = async ({ feeId, classId, schoolId }) => {
 
   if (enrollments.length === 0) {
     throw new Error(
-      "No students are enrolled in this class for this academic session",
+      "No students found for this selection in the current academic session",
     );
   }
 
-  // 5. Create invoices
+  // 4. Create invoices
   const createdInvoices = [];
   const skippedInvoices = [];
 
@@ -203,30 +220,21 @@ export const generateClassInvoices = async ({ feeId, classId, schoolId }) => {
         studentId: enrollment.studentId,
         reason: "Invoice already exists",
       });
-
       continue;
     }
 
     const invoice = await prisma.invoice.create({
       data: {
         invoiceNumber: generateInvoiceNumber(),
-
         description: fee.description || fee.name,
-
         amount: fee.amount,
-
         amountPaid: 0,
-
         status: "PENDING",
-
         enrollmentId: enrollment.id,
-
         feeId,
       },
-
       include: {
         fee: true,
-
         enrollment: {
           include: {
             student: {
@@ -249,11 +257,8 @@ export const generateClassInvoices = async ({ feeId, classId, schoolId }) => {
 
   return {
     createdCount: createdInvoices.length,
-
     skippedCount: skippedInvoices.length,
-
     createdInvoices,
-
     skippedInvoices,
   };
 };
