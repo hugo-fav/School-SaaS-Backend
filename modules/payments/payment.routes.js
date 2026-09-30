@@ -33,7 +33,7 @@ router.post(
 router.get(
   "/history",
   protect,
-  authorize("ADMIN"),
+  authorize("ADMIN", "STUDENT"),
   validatePaymentHistory,
   getPaymentHistoryController,
 );

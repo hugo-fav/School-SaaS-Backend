@@ -65,7 +65,7 @@ export const verifyPaymentController = async (req, res) => {
 
 export const getPaymentHistoryController = async (req, res) => {
   try {
-    const {
+    let {
       studentId,
       startDate,
       endDate,
@@ -73,6 +73,11 @@ export const getPaymentHistoryController = async (req, res) => {
       limit = 10,
       status,
     } = req.query;
+
+    // SECURITY: If a student is requesting, they can ONLY view their own history
+    if (req.user.role === "STUDENT") {
+      studentId = req.user.id;
+    }
 
     const result = await getPaymentHistory({
       schoolId: req.user.schoolId,
